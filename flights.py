@@ -105,18 +105,23 @@ async def get_airport(city_or_airport_name: str) -> str:
         if not airports:
             return f"No airports found matching '{city_or_airport_name}'."
         
-        # airports[0] is typically an Airport enum like Airport.TAIPEI_SONGSHAN_AIRPORT
-        # its value (e.g., airports[0].value) is the 3-letter IATA code (e.g., 'TSA')
-        best_match = airports[0]
+        results = [f"Found {len(airports)} airports matching '{city_or_airport_name}':"]
+        for idx, match in enumerate(airports, 1):
+            # Clean up the enum name for readability (e.g., TAIPEI_SONGSHAN_AIRPORT -> Taipei Songshan Airport)
+            readable_name = match.name.replace("_", " ").title()
+            iata_code = match.value
+            results.append(f"{idx}. {readable_name} ({iata_code})")
         
-        # Clean up the enum name for readability (e.g., TAIPEI_SONGSHAN_AIRPORT -> Taipei Songshan Airport)
-        readable_name = best_match.name.replace("_", " ").title()
-        iata_code = best_match.value
-        
-        return f"The primary airport matching '{city_or_airport_name}' is {readable_name} with IATA code '{iata_code}'."
+        return "\n".join(results)
         
     except Exception as e:
         return f"An error occurred while searching for the airport: {str(e)}"
+
+
+@mcp.tool()
+async def get_current_date() -> str:
+    """ Get the current date in YYYY-MM-DD format. Use this to determine the current year and date before making flight searches! """
+    return datetime.now().strftime("%Y-%m-%d")
 
 
 @mcp.tool()
@@ -297,7 +302,7 @@ async def get_cheapest_flights(origin: str, destination: str, departure_date: st
 
         output = ["Here are the cheapest flights for this route and time: "] + flight_info
 
-
+        print(output)
         return output
 
 
@@ -395,7 +400,7 @@ async def get_best_flights(origin: str, destination: str, departure_date: str,
 
         output = ["Here are the best flights for this route and time: "] + flight_info
 
-
+        print(output)
         return output
     
 
@@ -521,7 +526,7 @@ async def get_time_filtered_flights(state: str, target_time_str: str, origin: st
 
         output = [context_str] + flight_info
 
-
+        print(output)
         return output
 
 
@@ -534,11 +539,6 @@ async def get_time_filtered_flights(state: str, target_time_str: str, origin: st
     except Exception as e:
         return [f"An unexpected error occurred while searching for flights: {str(e)}"]
     
-
-
-
-
-
 
 if __name__ == "__main__":
     # Initialize and run the server
