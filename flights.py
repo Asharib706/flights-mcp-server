@@ -90,6 +90,36 @@ def format_flight_info(flight_data, origin_airport, destination_airport):
 # Main Functions
 
 @mcp.tool()
+async def get_airport(city_or_airport_name: str) -> str:
+    """ Search for an airport by name or city to get its 3-character IATA code. 
+    Use this if you are unsure about the IATA code of an airport, so you can pass it to the other tools.
+    
+    Args:
+        city_or_airport_name (str): The name of the city or airport (e.g. "Seattle", "Tokyo", "Heathrow")
+        
+    Returns:
+        str: A string detailing the closest matching airport and its 3-character IATA code, or an error message if none found.
+    """
+    try:
+        airports = search_airport(city_or_airport_name)
+        if not airports:
+            return f"No airports found matching '{city_or_airport_name}'."
+        
+        # airports[0] is typically an Airport enum like Airport.TAIPEI_SONGSHAN_AIRPORT
+        # its value (e.g., airports[0].value) is the 3-letter IATA code (e.g., 'TSA')
+        best_match = airports[0]
+        
+        # Clean up the enum name for readability (e.g., TAIPEI_SONGSHAN_AIRPORT -> Taipei Songshan Airport)
+        readable_name = best_match.name.replace("_", " ").title()
+        iata_code = best_match.value
+        
+        return f"The primary airport matching '{city_or_airport_name}' is {readable_name} with IATA code '{iata_code}'."
+        
+    except Exception as e:
+        return f"An error occurred while searching for the airport: {str(e)}"
+
+
+@mcp.tool()
 async def get_general_flights_info(origin: str, destination: str, departure_date: str,
                       trip_type: str = "one-way", seat: str = "economy",
                       adults: int = 1, children: int = 0, infants_in_seat: int = 0, infants_on_lap: int = 0,
