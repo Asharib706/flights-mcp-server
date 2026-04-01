@@ -155,73 +155,68 @@ export default function MessageBubble({ message }: { message: Message }) {
 
   return (
     <div
-      className={`animate-message-in flex items-end gap-3.5 mb-6 ${
-        isUser ? "justify-end" : "justify-start"
-      }`}
+      className={`animate-message-in flex ${isUser ? "flex-row-reverse" : "flex-row"} items-start gap-3 md:gap-4 mb-8 w-full`}
     >
-      {/* AI avatar */}
-      {!isUser && (
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-          style={{
-            background: "linear-gradient(135deg, var(--sky), var(--success))",
-            boxShadow: "0 0 14px rgba(0,194,255,0.35)",
-          }}
-        >
-          🤖
-        </div>
-      )}
-
-      {/* Bubble */}
+      {/* Avatar */}
       <div
-        className={`${
-          isUser
-            ? "max-w-[85%] sm:max-w-[72%] rounded-3xl rounded-br-lg px-5 md:px-7 py-4 md:py-5 text-white"
-            : "max-w-[90%] sm:max-w-[80%] rounded-3xl rounded-bl-lg px-6 md:px-8 py-5 md:py-6 border shadow-xl shadow-black/20"
+        className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 shadow-lg ${
+          isUser ? "animate-fade-in" : "animate-float"
         }`}
-        style={
-          isUser
-            ? {
-                background: "linear-gradient(135deg, var(--sky), #007ACC)",
-                boxShadow: "0 8px 32px rgba(0,194,255,0.15)",
-              }
-            : {
-                background: "rgba(15, 23, 42, 0.4)",
-                backdropFilter: "blur(24px)",
-                borderColor: "var(--glass-border)",
-              }
-        }
+        style={{
+          background: isUser 
+            ? "linear-gradient(135deg, var(--horizon), var(--sun))" 
+            : "linear-gradient(135deg, var(--sky), var(--success))",
+          boxShadow: isUser 
+            ? "0 4px 12px rgba(255,107,53,0.2)" 
+            : "0 4px 12px rgba(0,194,255,0.3)",
+        }}
       >
-        {/* Tool events */}
+        {isUser ? "👤" : "🤖"}
+      </div>
+
+      {/* Bubble container */}
+      <div
+        className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-[85%] sm:max-w-[75%]`}
+      >
+        {/* Tool events (AI only) */}
         {!isUser && message.toolEvents && message.toolEvents.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1">
+          <div className="mb-2.5 flex flex-wrap gap-1.5 px-1">
             {message.toolEvents.map((ev, i) => (
               <ToolEventBadge key={i} event={ev} isComplete={isDone} />
             ))}
           </div>
         )}
 
-        {/* Content */}
-        {message.content ? (
-          <div className={`prose-chat ${isUser ? "text-white" : ""}`} style={isUser ? {} : { color: "var(--muted)" }}>
-            {isUser ? message.content : renderMarkdown(message.content)}
-          </div>
-        ) : (
-          !isUser && message.isStreaming && <TypingIndicator />
-        )}
-      </div>
-
-      {/* User avatar */}
-      {isUser && (
+        {/* The Bubble */}
         <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-          style={{
-            background: "linear-gradient(135deg, var(--horizon), var(--sun))",
-          }}
+          className={`${
+            isUser
+              ? "rounded-[2rem] rounded-tr-none px-6 py-4 md:py-5 text-white"
+              : "rounded-[2rem] rounded-tl-none px-7 py-5 md:py-6 border"
+          }`}
+          style={
+            isUser
+              ? {
+                  background: "linear-gradient(135deg, var(--sky), #007ACC)",
+                  boxShadow: "0 10px 30px -10px rgba(0,194,255,0.4)",
+                }
+              : {
+                  background: "rgba(15, 23, 42, 0.6)",
+                  backdropFilter: "blur(24px)",
+                  borderColor: "var(--glass-border)",
+                  boxShadow: "0 12px 40px -12px rgba(0,0,0,0.5)",
+                }
+          }
         >
-          👤
+          {message.content ? (
+            <div className={`prose-chat ${isUser ? "text-white" : ""}`} style={isUser ? {} : { color: "var(--text)" }}>
+              {isUser ? message.content : renderMarkdown(message.content)}
+            </div>
+          ) : (
+            !isUser && message.isStreaming && <TypingIndicator />
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

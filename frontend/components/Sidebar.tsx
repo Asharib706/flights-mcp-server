@@ -146,20 +146,20 @@ export default function Sidebar({ onReset, isOpen, onClose }: SidebarProps) {
           className="px-5 py-5 border-t flex-shrink-0"
           style={{ borderColor: "var(--glass-border)" }}
         >
-          <div
-            className="flex items-center gap-2.5 px-3 py-3 rounded-xl text-xs font-medium"
-            style={{
-              background: "rgba(0,229,160,0.08)",
-              border: "1px solid rgba(0,229,160,0.2)",
-              color: "var(--success)",
-            }}
-          >
-            <span
-              className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse-dot"
-              style={{ background: "var(--success)" }}
-            />
-            Connected to 2 Live MCPs
-          </div>
+        <div
+          className="flex items-center gap-2.5 px-4 py-3.5 rounded-2xl text-xs font-semibold"
+          style={{
+            background: "rgba(16, 185, 129, 0.08)",
+            border: "1px solid rgba(16, 185, 129, 0.2)",
+            color: "var(--success)",
+          }}
+        >
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse-dot"
+            style={{ background: "var(--success)" }}
+          />
+          System Online · 2 MCPs
+        </div>
         </div>
       </aside>
     </>

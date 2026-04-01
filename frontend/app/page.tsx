@@ -173,67 +173,75 @@ export default function Home() {
       <div className="flex flex-col flex-1 overflow-hidden">
 
         {/* ── Top Bar ── */}
-        <div
-          className="flex items-center justify-between px-4 md:px-8 py-4 md:py-5 border-b flex-shrink-0"
+        <header
+          className="w-full border-b flex-shrink-0 z-50"
           style={{
-            background: "rgba(6,11,24,0.75)",
-            backdropFilter: "blur(20px)",
+            background: "rgba(6,11,24,0.8)",
+            backdropFilter: "blur(24px)",
             borderColor: "var(--glass-border)",
           }}
         >
-          <div className="flex items-center gap-3">
-            {/* Hamburger Toggle */}
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 -ml-2 text-white/70 hover:text-white transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            
-            <div>
-              <div
-                className="text-base md:text-lg font-black tracking-tight flex items-center gap-2"
-                style={{ fontFamily: "'Cabinet Grotesk', sans-serif" }}
+          <div className="max-w-4xl mx-auto w-full flex items-center justify-between px-6 md:px-8 py-4 md:py-6">
+            <div className="flex items-center gap-4">
+              {/* Hamburger Toggle */}
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden p-2 -ml-2 text-white/70 hover:text-white transition-colors"
               >
-                <span className="md:hidden">✈️</span> SkyMind
-                <span className="hidden md:inline">Travel Assistant</span>
-              </div>
-              <div className="text-[10px] md:text-xs mt-0.5 opacity-60" style={{ color: "var(--muted)" }}>
-                <span className="hidden sm:inline">Powered by </span>Google Flights + Hotels Live
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              
+              <div className="flex flex-col">
+                <div
+                  className="text-lg md:text-xl font-black tracking-tight flex items-center gap-2.5"
+                  style={{ fontFamily: "'Cabinet Grotesk', sans-serif" }}
+                >
+                  <span className="hidden xs:inline">✈️</span>
+                  <span className="bg-gradient-to-r from-white to-sky-400 bg-clip-text text-transparent">
+                    SkyMind
+                  </span>
+                </div>
+                <div className="text-[10px] md:text-xs mt-0.5 opacity-50 font-medium" style={{ color: "var(--muted)" }}>
+                  Travel Assistant <span className="hidden sm:inline">· Google Flights + Hotels Live</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            {/* Connection status (mobile simplified) */}
-            {connected !== null && (
+            <div className="flex items-center gap-3">
+              {/* Connection status */}
+              {connected !== null && (
+                <div
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] md:text-xs border transition-all duration-500"
+                  style={{
+                    background: connected ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
+                    borderColor: connected ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)",
+                    color: connected ? "var(--success)" : "#ef4444",
+                  }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{ background: connected ? "var(--success)" : "#ef4444" }} />
+                  <span className="font-semibold">{connected ? "Online" : "Offline"}</span>
+                </div>
+              )}
+
               <div
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[10px] md:text-xs border"
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] md:text-xs border font-medium"
                 style={{
                   background: "var(--glass)",
                   borderColor: "var(--glass-border)",
-                  color: connected ? "var(--success)" : "#ef4444",
+                  color: "var(--muted)",
                 }}
               >
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{ background: connected ? "var(--success)" : "#ef4444" }} />
-                <span className="hidden xs:inline">{connected ? "Connected" : "Offline"}</span>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
+                </span>
+                LIVE
               </div>
-            )}
-
-            <div
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border"
-              style={{
-                background: "var(--glass)",
-                borderColor: "var(--glass-border)",
-                color: "var(--muted)",
-              }}
-            >
-              🔍 Live
             </div>
           </div>
-        </div>
+        </header>
 
         {/* ── Chat Area ── */}
         <main className="flex-1 flex flex-col overflow-hidden relative">

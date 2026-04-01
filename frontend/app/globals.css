@@ -10,12 +10,12 @@
   --midnight: #060B18;
   --surface: #0F172A;
   --surface2: #1A2540;
-  --glass: rgba(255, 255, 255, 0.04);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --text: #F0F4FF;
-  --muted: #7B8DB0;
-  --success: #00E5A0;
-  --card-glow: rgba(0, 194, 255, 0.08);
+  --glass: rgba(255, 255, 255, 0.05); /* Slightly increased from 0.04 */
+  --glass-border: rgba(255, 255, 255, 0.12); /* Increased from 0.08 */
+  --text: #F8FAFC; /* Brighter slate-50 */
+  --muted: #94A3B8; /* Higher contrast slate-400 */
+  --success: #10B981; /* Emerald-500 */
+  --card-glow: rgba(0, 194, 255, 0.12);
 }
 
 /* ── Base ─────────────────────────────────────────────────────────────── */
@@ -37,17 +37,20 @@ body {
 /* ── Glassmorphism ────────────────────────────────────────────────────── */
 .glass {
   background: var(--glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
 .glass-bright {
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(15, 23, 42, 0.7);
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
-  border: 1px solid rgba(0, 194, 255, 0.2);
-  box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.3), 0 0 40px rgba(0, 194, 255, 0.03);
+  border: 1px solid rgba(0, 194, 255, 0.3);
+  box-shadow: 
+    0 10px 40px -10px rgba(0, 0, 0, 0.5), 
+    0 0 50px rgba(0, 194, 255, 0.05);
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────── */
@@ -162,27 +165,27 @@ body {
 
 /* ── Starfield ────────────────────────────────────────────────────────── */
 .stars {
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background-image:
-    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.6), transparent),
-    radial-gradient(1px 1px at 80% 15%, rgba(255,255,255,0.4), transparent),
-    radial-gradient(1px 1px at 45% 70%, rgba(255,255,255,0.5), transparent),
-    radial-gradient(1.5px 1.5px at 65% 25%, rgba(255,255,255,0.7), transparent),
-    radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,0.3), transparent),
-    radial-gradient(1px 1px at 90% 55%, rgba(255,255,255,0.5), transparent),
-    radial-gradient(1px 1px at 35% 50%, rgba(255,255,255,0.3), transparent),
-    radial-gradient(1px 1px at 72% 88%, rgba(255,255,255,0.4), transparent),
-    radial-gradient(1.5px 1.5px at 5% 45%, rgba(255,255,255,0.6), transparent),
-    radial-gradient(1px 1px at 55% 10%, rgba(255,255,255,0.5), transparent);
+    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1px 1px at 80% 15%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1px 1px at 45% 70%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1.5px 1.5px at 65% 25%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,0.2), transparent),
+    radial-gradient(1px 1px at 90% 55%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1px 1px at 35% 50%, rgba(255,255,255,0.2), transparent),
+    radial-gradient(1px 1px at 72% 88%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1.5px 1.5px at 5% 45%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1px 1px at 55% 10%, rgba(255,255,255,0.3), transparent);
 }
 
 /* ── Background canvas ────────────────────────────────────────────────── */
 .bg-canvas {
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  position: fixed; inset: 0; z-index: -2; pointer-events: none;
   background:
-    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,194,255,0.12) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 40% at 90% 80%, rgba(255,107,53,0.08) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 50% at 10% 90%, rgba(0,229,160,0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,194,255,0.1) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 90% 80%, rgba(255,107,53,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 50% at 10% 90%, rgba(0,229,160,0.04) 0%, transparent 60%),
     var(--midnight);
 }
 
