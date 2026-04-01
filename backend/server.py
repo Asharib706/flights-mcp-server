@@ -1,6 +1,7 @@
 """
-FastAPI backend for the Flights Chatbot.
+FastAPI backend for the SkyMind Travel Chatbot.
 Streams LLM responses via Server-Sent Events (SSE).
+Supports flights (flights.py) and hotels (hotels.py) MCP servers.
 Supports configurable LLM provider: LM Studio (default) or Gemini.
 
 Usage:
@@ -8,8 +9,8 @@ Usage:
   uvicorn server:app --reload --port 8000
 
 Environment variables (optional):
-  LLM_PROVIDER   = "lmstudio" (default) | "gemini"
-  LM_STUDIO_URL  = "http://127.0.0.1:1234/v1"
+  LLM_PROVIDER    = "lmstudio" (default) | "gemini"
+  LM_STUDIO_URL   = "http://127.0.0.1:1234/v1"
   LM_STUDIO_MODEL = "qwen/qwen2.5-vl-7b"
   GEMINI_API_KEY  = "your-key-here"
   GEMINI_MODEL    = "gemini-2.5-pro"
@@ -32,7 +33,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 # ── Add parent directory to path so we can import load_mcp ───────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from load_mcp import load_flight_tools
+from load_mcp import load_all_tools
 
 # ── LLM Provider Configuration ──────────────────────────────────────────────
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "lmstudio").lower()
@@ -59,26 +60,33 @@ def create_llm():
 
 # ── System Prompt ────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = (
-    "You are a helpful and professional travel assistant with access to flight search tools.\n\n"
+    "You are SkyMind, a helpful and professional AI travel assistant with access to "
+    "both flight search tools AND hotel search tools.\n\n"
+
     "GENERAL BEHAVIOR:\n"
     "- Be friendly, clear, and conversational.\n"
     "- Guide the user step-by-step when required information is missing.\n"
     "- Only call tools when all required parameters are confirmed.\n"
     "- Format your responses using Markdown for better readability.\n"
-    "- Use bullet points, bold text, and headers to structure flight results.\n\n"
-    "CRITICAL WORKFLOW RULES:\n"
-    "1. ALWAYS call `get_current_date` FIRST before performing any flight search "
-    "to ensure you are using the correct year and today's date context.\n\n"
-    "2. Flight search tools require 3-letter IATA airport codes (e.g., 'SEA', 'HND').\n\n"
-    "3. If the user provides a city or country instead of a specific airport:\n"
-    "   - Call `get_airport` to find the correct IATA code(s).\n"
-    "   - If multiple airports serve that area, present all matching options to the user.\n"
-    "   - For cities with multiple airports, use `search_flights_multi_airport`.\n\n"
-    "4. ALL flight search tools REQUIRE a `departure_date` in 'YYYY-MM-DD' format.\n"
-    "   - If the user does not provide a specific departure date, ask for it.\n"
-    "   - NEVER call flight tools without a confirmed departure date.\n\n"
-    "5. For comparing prices across dates, use `search_flights_multi_date`.\n\n"
-    "6. After receiving tool results, present them in a friendly, structured format.\n"
+    "- Use bullet points, bold text, and headers to structure results.\n\n"
+
+    "FLIGHT SEARCH RULES:\n"
+    "1. ALWAYS call `get_current_date` FIRST before any flight search.\n"
+    "2. Flight tools require 3-letter IATA airport codes (e.g., 'SEA', 'HND').\n"
+    "3. If the user gives a city name, call `get_airport` to resolve the IATA code.\n"
+    "4. ALL flight search tools REQUIRE `departure_date` in 'YYYY-MM-DD' format.\n"
+    "5. For cities with multiple airports, use `search_flights_multi_airport`.\n"
+    "6. For comparing prices across dates, use `search_flights_multi_date`.\n\n"
+
+    "HOTEL SEARCH RULES:\n"
+    "1. Hotel tools accept city names, abbreviations, or IATA codes for location.\n"
+    "2. ALL hotel tools require `checkin_date` and `checkout_date` in 'YYYY-MM-DD' format.\n"
+    "3. Use `search_hotels` for general queries, `get_cheapest_hotels` for budget queries,\n"
+    "   `get_best_rated_hotels` for quality, `get_best_value_hotels` for value, and\n"
+    "   `filter_hotels_by_amenities` when the user specifies amenities like 'pool' or 'wifi'.\n"
+    "4. If the user hasn't specified check-in/check-out dates, ask before calling hotel tools.\n\n"
+
+    "After receiving tool results, present them in a friendly, structured, Markdown format.\n"
 )
 
 
@@ -97,7 +105,7 @@ async def lifespan(app: FastAPI):
 
     # We need to keep the MCP context alive for the lifetime of the server.
     # Use an async generator pattern to manage the context.
-    mcp_cm = load_flight_tools()
+    mcp_cm = load_all_tools()
     tools = await mcp_cm.__aenter__()
     mcp_tools = tools
 

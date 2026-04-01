@@ -4,75 +4,129 @@ import { useRef, useEffect } from "react";
 import MessageBubble, { Message } from "./MessageBubble";
 
 interface ChatWindowProps {
-    messages: Message[];
-    onSuggestionClick?: (text: string) => void;
+  messages: Message[];
+  onSuggestionClick?: (text: string) => void;
 }
 
 export default function ChatWindow({ messages, onSuggestionClick }: ChatWindowProps) {
-    const bottomRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-    // Auto-scroll on new messages
-    useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages, messages[messages.length - 1]?.content]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, messages[messages.length - 1]?.content]);
 
-    return (
-        <div className="flex-1 overflow-y-auto scrollbar-thin px-4 md:px-8 py-6">
-            {messages.length === 0 ? (
-                <EmptyState onSuggestionClick={onSuggestionClick} />
-            ) : (
-                messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
-            )}
-            <div ref={bottomRef} />
-        </div>
-    );
+  return (
+    <div className="flex-1 overflow-y-auto scrollbar-thin px-4 md:px-8 py-6 md:py-10">
+      <div className="max-w-4xl mx-auto w-full">
+        {messages.length === 0 ? (
+          <EmptyState onSuggestionClick={onSuggestionClick} />
+        ) : (
+          messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
+        )}
+        <div ref={bottomRef} className="h-4" />
+      </div>
+    </div>
+  );
 }
 
-/* ── Empty state / welcome screen ────────────────────────────────────────── */
-function EmptyState({ onSuggestionClick }: { onSuggestionClick?: (text: string) => void }) {
-    const suggestions = [
-        { icon: "✈️", text: "Find flights from Karachi to Dubai on March 10" },
-        { icon: "💰", text: "Cheapest flights from Islamabad to London next week" },
-        { icon: "📅", text: "Compare flights to New York for March 15-20" },
-        { icon: "💼", text: "Best business class flights from Lahore to Istanbul" },
-    ];
+/* ── Welcome / Empty State ─────────────────────────────────────────────── */
+const QUICK_CARDS = [
+  {
+    icon: "💸",
+    title: "Cheapest Flights",
+    desc: "Find the best deals on any route with live pricing",
+    prompt: "Find the cheapest flights from Karachi to Dubai next Friday",
+  },
+  {
+    icon: "🏨",
+    title: "Hotel Search",
+    desc: "Discover top-rated stays filtered by budget & amenities",
+    prompt: "Best rated hotels in Istanbul under $150/night for 3 nights",
+  },
+  {
+    icon: "📊",
+    title: "Price Comparison",
+    desc: "Compare dates, airlines, and routes side by side",
+    prompt: "Compare flights from Lahore to London in July vs August",
+  },
+  {
+    icon: "🗺️",
+    title: "Full Trip Planner",
+    desc: "Flights + hotels bundled into one seamless plan",
+    prompt: "Plan a 7-day trip to Tokyo with flights from KHI and a hotel with breakfast",
+  },
+];
 
-    return (
-        <div className="h-full flex flex-col items-center justify-center text-center px-4">
-            {/* Logo / Icon */}
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-6 glow-pulse shadow-xl shadow-indigo-500/20">
-                <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                </svg>
+function EmptyState({
+  onSuggestionClick,
+}: {
+  onSuggestionClick?: (text: string) => void;
+}) {
+  return (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4 animate-fade-up">
+      {/* Floating globe */}
+      <div className="relative mb-6">
+        <div className="absolute inset-0 bg-sky-500/20 blur-3xl rounded-full scale-150 animate-pulse" />
+        <span className="text-6xl md:text-7xl block animate-float relative z-10">🌍</span>
+      </div>
+
+      {/* Title */}
+      <h1
+        className="text-4xl md:text-6xl mb-4 leading-tight tracking-tight"
+        style={{
+          fontFamily: "'Instrument Serif', serif",
+          fontStyle: "italic",
+          background: "linear-gradient(135deg, #fff 40%, var(--sky))",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+        }}
+      >
+        Where to next?
+      </h1>
+
+      <p className="text-sm md:text-base max-w-md mb-12 leading-relaxed opacity-70" style={{ color: "var(--muted)" }}>
+        Ask me anything about flights, hotels, prices, or routes — I'll search
+        Google Flights &amp; Hotels in real-time.
+      </p>
+
+      {/* Quick-action grid - Responsive 1 -> 2 columns */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
+        {QUICK_CARDS.map((card, i) => (
+          <button
+            key={i}
+            onClick={() => onSuggestionClick?.(card.prompt)}
+            className="flex flex-col items-center text-center p-8 md:p-10 rounded-3xl transition-all duration-300 cursor-pointer border relative overflow-hidden group hover:scale-[1.02] hover:shadow-2xl hover:shadow-sky-500/10"
+            style={{
+              background: "rgba(15, 23, 42, 0.4)",
+              borderColor: "var(--glass-border)",
+            }}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.borderColor = "rgba(0,194,255,0.4)";
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.borderColor = "var(--glass-border)";
+            }}
+          >
+            {/* Hover Gradient Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            
+            <div className="relative z-10 flex flex-col items-center">
+              <span className="text-4xl block mb-4 group-hover:scale-110 transition-transform duration-300">{card.icon}</span>
+              <div
+                className="font-black text-base md:text-lg mb-2"
+                style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--text)" }}
+              >
+                {card.title}
+              </div>
+              <div className="text-xs md:text-sm leading-relaxed opacity-60 max-w-[200px]" style={{ color: "var(--muted)" }}>
+                {card.desc}
+              </div>
             </div>
-
-            <h1
-                className="text-2xl md:text-3xl font-bold text-white mb-2"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-                SkyPilot
-            </h1>
-            <p className="text-slate-400 text-sm max-w-md mb-8">
-                Your AI-powered flight assistant. Search flights, compare prices across dates,
-                and explore routes to cities with multiple airports — all in one conversation.
-            </p>
-
-            {/* Suggestion chips */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-xl w-full">
-                {suggestions.map((s, i) => (
-                    <button
-                        key={i}
-                        onClick={() => onSuggestionClick?.(s.text)}
-                        className="glass-bright text-left text-xs text-slate-400 px-4 py-3 rounded-xl 
-                       hover:text-slate-200 hover:border-indigo-500/40 hover:scale-[1.02]
-                       transition-all duration-200 cursor-pointer
-                       flex items-start gap-2.5"
-                    >
-                        <span className="text-base mt-[-1px]">{s.icon}</span>
-                        <span className="leading-relaxed">{s.text}</span>
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }

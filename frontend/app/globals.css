@@ -1,175 +1,125 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@400;500;700;800;900&family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap');
 @import "tailwindcss";
 
-/* ── CSS Custom Properties ────────────────────────────────────────────────── */
+/* ── SkyMind CSS Variables ──────────────────────────────────────────────── */
 :root {
-  --bg-primary: #0a0e1a;
-  --bg-secondary: #111827;
-  --bg-glass: rgba(17, 24, 39, 0.6);
-  --bg-glass-hover: rgba(17, 24, 39, 0.8);
-  --border-glass: rgba(99, 102, 241, 0.15);
-  --border-glass-bright: rgba(99, 102, 241, 0.3);
-  --accent-primary: #6366f1;
-  --accent-secondary: #8b5cf6;
-  --accent-glow: rgba(99, 102, 241, 0.4);
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --user-bubble: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  --ai-bubble: rgba(30, 41, 59, 0.7);
-  --success: #10b981;
-  --warning: #f59e0b;
+  --sky: #00C2FF;
+  --horizon: #FF6B35;
+  --sun: #FFD60A;
+  --deep: #0A0F1E;
+  --midnight: #060B18;
+  --surface: #0F172A;
+  --surface2: #1A2540;
+  --glass: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --text: #F0F4FF;
+  --muted: #7B8DB0;
+  --success: #00E5A0;
+  --card-glow: rgba(0, 194, 255, 0.08);
 }
 
-/* ── Base ─────────────────────────────────────────────────────────────────── */
+/* ── Base ─────────────────────────────────────────────────────────────── */
 * {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 html,
 body {
   height: 100%;
   overflow: hidden;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  background: var(--midnight);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Animated gradient background ─────────────────────────────────────────── */
-.bg-animated-gradient {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  background:
-    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(99, 102, 241, 0.08) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 20%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 60% at 50% 90%, rgba(99, 102, 241, 0.04) 0%, transparent 40%),
-    var(--bg-primary);
-  animation: gradient-shift 20s ease-in-out infinite;
-}
-
-@keyframes gradient-shift {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.8;
-  }
-}
-
-/* ── Glassmorphism ────────────────────────────────────────────────────────── */
+/* ── Glassmorphism ────────────────────────────────────────────────────── */
 .glass {
-  background: var(--bg-glass);
+  background: var(--glass);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-glass);
+  border: 1px solid var(--glass-border);
 }
 
 .glass-bright {
-  background: var(--bg-glass);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid var(--border-glass-bright);
-  box-shadow: 0 0 30px rgba(99, 102, 241, 0.05);
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(0, 194, 255, 0.2);
+  box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.3), 0 0 40px rgba(0, 194, 255, 0.03);
 }
 
-/* ── Scrollbar ────────────────────────────────────────────────────────────── */
-.scrollbar-thin::-webkit-scrollbar {
-  width: 5px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
+.scrollbar-thin::-webkit-scrollbar { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.2);
-  border-radius: 10px;
+  background: var(--glass-border);
+  border-radius: 2px;
 }
-
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.4);
+  background: rgba(0, 194, 255, 0.25);
 }
 
-/* ── Message animations ───────────────────────────────────────────────────── */
+/* ── Animations ───────────────────────────────────────────────────────── */
 @keyframes message-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.97);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-
 .animate-message-in {
   animation: message-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* ── Typing dots ──────────────────────────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fade-up 0.6s ease both; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.animate-float { animation: float 4s ease-in-out infinite; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fade-in { animation: fade-in 0.3s ease forwards; }
+
+/* ── Typing / Thinking dots (sky blue) ───────────────────────────────── */
 @keyframes bounce-dot {
-
-  0%,
-  80%,
-  100% {
-    transform: scale(0.6);
-    opacity: 0.4;
-  }
-
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40%           { transform: scale(1);   opacity: 1; }
 }
 
 .typing-dot {
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 7px; height: 7px;
   border-radius: 50%;
-  background: var(--accent-primary);
+  background: var(--sky);
   animation: bounce-dot 1.4s infinite ease-in-out both;
 }
+.typing-dot:nth-child(1) { animation-delay: 0s; }
+.typing-dot:nth-child(2) { animation-delay: 0.16s; }
+.typing-dot:nth-child(3) { animation-delay: 0.32s; }
 
-.typing-dot:nth-child(1) {
-  animation-delay: 0s;
+/* ── Status dot pulse ─────────────────────────────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(0.85); }
 }
+.animate-pulse-dot { animation: pulse-dot 2s infinite; }
 
-.typing-dot:nth-child(2) {
-  animation-delay: 0.16s;
-}
-
-.typing-dot:nth-child(3) {
-  animation-delay: 0.32s;
-}
-
-/* ── Glow pulse ───────────────────────────────────────────────────────────── */
+/* ── Glow pulse (welcome icon) ───────────────────────────────────────── */
 @keyframes glow-pulse {
-
-  0%,
-  100% {
-    box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
-  }
-
-  50% {
-    box-shadow: 0 0 25px rgba(99, 102, 241, 0.4);
-  }
+  0%, 100% { box-shadow: 0 0 20px rgba(0, 194, 255, 0.25); }
+  50%       { box-shadow: 0 0 36px rgba(0, 194, 255, 0.5); }
 }
+.glow-pulse { animation: glow-pulse 3s ease-in-out infinite; }
 
-.glow-pulse {
-  animation: glow-pulse 3s ease-in-out infinite;
-}
-
-/* ── Tool badge ───────────────────────────────────────────────────────────── */
+/* ── Tool badge ───────────────────────────────────────────────────────── */
 .tool-badge {
   display: inline-flex;
   align-items: center;
@@ -178,68 +128,64 @@ body {
   border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 500;
-  background: rgba(99, 102, 241, 0.1);
-  border: 1px solid rgba(99, 102, 241, 0.2);
-  color: var(--accent-primary);
+  background: rgba(0, 194, 255, 0.08);
+  border: 1px solid rgba(0, 194, 255, 0.2);
+  color: var(--sky);
 }
 
-/* ── Markdown prose overrides ─────────────────────────────────────────────── */
-.prose-chat {
-  font-size: 0.9rem;
-  line-height: 1.65;
-}
+/* ── Markdown prose ───────────────────────────────────────────────────── */
+.prose-chat { font-size: 0.9rem; line-height: 1.65; }
 
 .prose-chat h1,
 .prose-chat h2,
 .prose-chat h3 {
-  font-family: 'Space Grotesk', sans-serif;
-  font-weight: 600;
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-weight: 700;
   margin-top: 1em;
   margin-bottom: 0.5em;
-  color: var(--text-primary);
+  color: var(--text);
 }
-
-.prose-chat h3 {
-  font-size: 1rem;
-}
+.prose-chat h3 { font-size: 1rem; }
 
 .prose-chat ul,
-.prose-chat ol {
-  padding-left: 1.2em;
-  margin: 0.4em 0;
-}
-
-.prose-chat li {
-  margin: 0.15em 0;
-}
-
-.prose-chat strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.prose-chat p {
-  margin: 0.4em 0;
-}
-
+.prose-chat ol { padding-left: 1.2em; margin: 0.4em 0; }
+.prose-chat li { margin: 0.15em 0; }
+.prose-chat strong { color: var(--text); font-weight: 600; }
+.prose-chat p { margin: 0.4em 0; }
 .prose-chat code {
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(0, 194, 255, 0.08);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 0.85em;
+  color: var(--sky);
 }
 
-/* ── Fade-in for tool events ──────────────────────────────────────────────── */
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
+/* ── Starfield ────────────────────────────────────────────────────────── */
+.stars {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 80% 15%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1px 1px at 45% 70%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1.5px 1.5px at 65% 25%, rgba(255,255,255,0.7), transparent),
+    radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1px 1px at 90% 55%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 35% 50%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1px 1px at 72% 88%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1.5px 1.5px at 5% 45%, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 55% 10%, rgba(255,255,255,0.5), transparent);
 }
 
-.animate-fade-in {
-  animation: fade-in 0.3s ease forwards;
+/* ── Background canvas ────────────────────────────────────────────────── */
+.bg-canvas {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,194,255,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 90% 80%, rgba(255,107,53,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 50% at 10% 90%, rgba(0,229,160,0.05) 0%, transparent 60%),
+    var(--midnight);
 }
+
+/* ── Font helpers ─────────────────────────────────────────────────────── */
+.font-cabinet { font-family: 'Cabinet Grotesk', sans-serif; }
+.font-serif-italic { font-family: 'Instrument Serif', serif; font-style: italic; }

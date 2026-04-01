@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import ChatWindow from "../components/ChatWindow";
 import ChatInput from "../components/ChatInput";
+import Sidebar from "../components/Sidebar";
 import { Message, ToolEvent } from "../components/MessageBubble";
 import { streamChat, resetSession, ChatEvent } from "../lib/api";
 
@@ -11,20 +12,23 @@ export default function Home() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [connected, setConnected] = useState<boolean | null>(null);
+  const [statsFlights, setStatsFlights] = useState(0);
+  const [statsTools, setStatsTools] = useState(0);
+  const [statsTime, setStatsTime] = useState<string>("—");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const startTimeRef = useRef<number>(0);
   const abortRef = useRef<AbortController | null>(null);
 
   const handleSend = useCallback(
     async (text: string) => {
       if (isStreaming) return;
 
-      // Add user message
       const userMsg: Message = {
         id: `user-${Date.now()}`,
         role: "user",
         content: text,
       };
 
-      // Create placeholder AI message
       const aiId = `ai-${Date.now()}`;
       const aiMsg: Message = {
         id: aiId,
@@ -36,6 +40,7 @@ export default function Home() {
 
       setMessages((prev) => [...prev, userMsg, aiMsg]);
       setIsStreaming(true);
+      startTimeRef.current = Date.now();
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -49,7 +54,6 @@ export default function Home() {
           text,
           sessionId,
           (event: ChatEvent) => {
-            // Capture session_id from first event
             if (!currentSessionId && event.session_id) {
               currentSessionId = event.session_id;
               setSessionId(event.session_id);
@@ -74,11 +78,17 @@ export default function Home() {
                 });
                 setMessages((prev) =>
                   prev.map((m) =>
-                    m.id === aiId
-                      ? { ...m, toolEvents: [...toolEvents] }
-                      : m
+                    m.id === aiId ? { ...m, toolEvents: [...toolEvents] } : m
                   )
                 );
+                setStatsTools((t) => t + 1);
+
+                if (
+                  event.tool_name?.includes("flight") ||
+                  event.tool_name?.includes("airport")
+                ) {
+                  setStatsFlights((f) => f + 1);
+                }
                 break;
 
               case "tool_result":
@@ -95,6 +105,9 @@ export default function Home() {
                   )
                 );
                 setConnected(true);
+                setStatsTime(
+                  ((Date.now() - startTimeRef.current) / 1000).toFixed(1) + "s"
+                );
                 break;
 
               case "error":
@@ -102,10 +115,10 @@ export default function Home() {
                   prev.map((m) =>
                     m.id === aiId
                       ? {
-                        ...m,
-                        content: `⚠️ Error: ${event.content}`,
-                        isStreaming: false,
-                      }
+                          ...m,
+                          content: `⚠️ Error: ${event.content}`,
+                          isStreaming: false,
+                        }
                       : m
                   )
                 );
@@ -120,21 +133,18 @@ export default function Home() {
           prev.map((m) =>
             m.id === aiId
               ? {
-                ...m,
-                content: `⚠️ Could not connect to the server. Make sure the backend is running on http://localhost:8000`,
-                isStreaming: false,
-              }
+                  ...m,
+                  content: `⚠️ Could not connect to the server.`,
+                  isStreaming: false,
+                }
               : m
           )
         );
         setConnected(false);
       } finally {
         setIsStreaming(false);
-        // Safety net: always mark the AI message as done when the stream ends
         setMessages((prev) =>
-          prev.map((m) =>
-            m.id === aiId ? { ...m, isStreaming: false } : m
-          )
+          prev.map((m) => (m.id === aiId ? { ...m, isStreaming: false } : m))
         );
         abortRef.current = null;
       }
@@ -143,82 +153,138 @@ export default function Home() {
   );
 
   const handleReset = useCallback(async () => {
-    if (sessionId) {
-      await resetSession(sessionId);
-    }
+    if (sessionId) await resetSession(sessionId);
     setMessages([]);
     setSessionId(null);
+    setStatsFlights(0);
+    setStatsTools(0);
+    setStatsTime("—");
   }, [sessionId]);
 
   return (
-    <>
-      {/* Header */}
-      <header className="flex-shrink-0 glass border-b border-white/5">
-        <div className="max-w-4xl mx-auto px-4 md:px-8 h-14 flex items-center justify-between">
+    <div className="flex h-screen overflow-hidden relative">
+      <Sidebar 
+        onReset={handleReset} 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)} 
+      />
+
+      {/* Main column */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+
+        {/* ── Top Bar ── */}
+        <div
+          className="flex items-center justify-between px-4 md:px-8 py-4 md:py-5 border-b flex-shrink-0"
+          style={{
+            background: "rgba(6,11,24,0.75)",
+            backdropFilter: "blur(20px)",
+            borderColor: "var(--glass-border)",
+          }}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-              <svg
-                className="w-4 h-4 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
-                />
-              </svg>
-            </div>
-            <span
-              className="text-sm font-semibold text-white tracking-tight"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            {/* Hamburger Toggle */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden p-2 -ml-2 text-white/70 hover:text-white transition-colors"
             >
-              SkyPilot
-            </span>
-            {connected !== null && (
-              <span
-                className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400" : "bg-red-400"
-                  }`}
-                title={connected ? "Connected" : "Disconnected"}
-              />
-            )}
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            
+            <div>
+              <div
+                className="text-base md:text-lg font-black tracking-tight flex items-center gap-2"
+                style={{ fontFamily: "'Cabinet Grotesk', sans-serif" }}
+              >
+                <span className="md:hidden">✈️</span> SkyMind
+                <span className="hidden md:inline">Travel Assistant</span>
+              </div>
+              <div className="text-[10px] md:text-xs mt-0.5 opacity-60" style={{ color: "var(--muted)" }}>
+                <span className="hidden sm:inline">Powered by </span>Google Flights + Hotels Live
+              </div>
+            </div>
           </div>
 
-          {messages.length > 0 && (
-            <button
-              onClick={handleReset}
-              className="text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1.5"
-            >
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
+          <div className="flex items-center gap-2">
+            {/* Connection status (mobile simplified) */}
+            {connected !== null && (
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[10px] md:text-xs border"
+                style={{
+                  background: "var(--glass)",
+                  borderColor: "var(--glass-border)",
+                  color: connected ? "var(--success)" : "#ef4444",
+                }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"
-                />
-              </svg>
-              New Chat
-            </button>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{ background: connected ? "var(--success)" : "#ef4444" }} />
+                <span className="hidden xs:inline">{connected ? "Connected" : "Offline"}</span>
+              </div>
+            )}
+
+            <div
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border"
+              style={{
+                background: "var(--glass)",
+                borderColor: "var(--glass-border)",
+                color: "var(--muted)",
+              }}
+            >
+              🔍 Live
+            </div>
+          </div>
+        </div>
+
+        {/* ── Chat Area ── */}
+        <main className="flex-1 flex flex-col overflow-hidden relative">
+          <ChatWindow messages={messages} onSuggestionClick={handleSend} />
+
+          {/* ── Stats Strip ── */}
+          {messages.length > 0 && (
+            <div
+              className="flex gap-2.5 px-4 md:px-8 py-2.5 flex-shrink-0 overflow-x-auto scrollbar-thin"
+              style={{ 
+                background: "rgba(10,15,30,0.4)",
+                borderTop: "1px solid var(--glass-border)" 
+              }}
+            >
+              {[
+                { icon: "✈️", label: "Flights", val: statsFlights },
+                { icon: "⚡", label: "Response", val: statsTime },
+                { icon: "🔧", label: "Tools", val: statsTools },
+              ].map((s, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] md:text-xs whitespace-nowrap border flex-shrink-0"
+                  style={{
+                    background: "var(--glass)",
+                    borderColor: "var(--glass-border)",
+                    color: "var(--muted)",
+                  }}
+                >
+                  <span className="opacity-80">{s.icon}</span>
+                  <span className="hidden xs:inline">{s.label}:</span>
+                  <span className="font-bold" style={{ color: "var(--text)" }}>{s.val}</span>
+                </div>
+              ))}
+            </div>
           )}
-        </div>
-      </header>
 
-      {/* Chat area */}
-      <main className="flex-1 flex flex-col max-w-6xl w-full mx-auto overflow-hidden">
-        <ChatWindow messages={messages} onSuggestionClick={handleSend} />
-
-        {/* Input area */}
-        <div className="flex-shrink-0 px-4 md:px-8 pb-4 pt-2">
-          <ChatInput onSend={handleSend} disabled={isStreaming} />
-        </div>
-      </main>
-    </>
+          {/* ── Input Area ── */}
+          <div
+            className="flex-shrink-0 px-4 md:px-8 pb-4 md:pb-8 pt-4"
+            style={{
+              background: "rgba(6,11,24,0.85)",
+              backdropFilter: "blur(24px)",
+              borderTop: messages.length > 0 ? "none" : "1px solid var(--glass-border)",
+            }}
+          >
+            <div className="max-w-4xl mx-auto w-full">
+              <ChatInput onSend={handleSend} disabled={isStreaming} />
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
   );
 }

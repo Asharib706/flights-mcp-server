@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SkyPilot — AI Flight Assistant",
+  title: "SkyMind — AI Travel Assistant",
   description:
-    "Find the best flights worldwide with our AI-powered travel assistant. Compare prices, routes, and dates instantly.",
+    "Find the best flights and hotels worldwide with SkyMind, your AI-powered travel assistant.",
 };
 
 export default function RootLayout({
@@ -15,11 +15,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        {/* Animated background gradient */}
-        <div className="bg-animated-gradient" />
+        {/* Starfield + background canvas */}
+        <div className="bg-canvas" />
+        <div className="stars" />
 
-        {/* Main content */}
-        <div className="relative z-10 h-screen flex flex-col">{children}</div>
+        {/* Main content above backgrounds */}
+        <div className="relative z-10 h-screen flex flex-col">
+          {children}
+        </div>
       </body>
     </html>
   );

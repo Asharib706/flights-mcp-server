@@ -13,5 +13,8 @@ dependencies = [
     "langgraph>=1.0.9",
     "mcp[cli]>=1.3.0",
     "langchain-google-genai",
-    "fast-hotels>=0.2.1"
+    "fast-hotels",
 ]
+
+[tool.uv.sources]
+fast-hotels = { path = "./fast_hotels_local", editable = true }

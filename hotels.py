@@ -1,5 +1,4 @@
 from typing import Any, List, Optional
-import httpx
 from mcp.server.fastmcp import FastMCP
 
 from fast_hotels.hotels_impl import HotelData, Guests
@@ -170,6 +169,16 @@ CITY_LOCATION_MAP: dict[str, str] = {
 }
 
 
+# ── Currency symbols for display ─────────────────────────────────────────────
+CURRENCY_SYMBOLS = {
+    "USD": "$", "EUR": "€", "GBP": "£", "PKR": "Rs ",
+    "INR": "₹", "AED": "AED ", "SAR": "SAR ", "QAR": "QAR ",
+    "JPY": "¥", "KRW": "₩", "CAD": "C$", "AUD": "A$",
+    "SGD": "S$", "MYR": "MYR ", "THB": "฿", "IDR": "Rp ",
+    "PHP": "₱", "BRL": "R$", "TRY": "₺",
+}
+
+
 def resolve_location(location: str) -> str:
     """Resolve a location string to a Google Hotels-compatible location name.
 
@@ -200,32 +209,47 @@ def format_hotel_info(hotel: dict) -> str:
 
     Args:
         hotel: Dictionary containing hotel information with keys:
-               name, price, rating, amenities, url
+               name, price, currency, rating, stars, deal, amenities, url
 
     Returns:
         Formatted string describing the hotel.
     """
     name = hotel.get("name", "Unknown Hotel")
     price = hotel.get("price")
+    currency = hotel.get("currency", "USD")
     rating = hotel.get("rating")
+    stars = hotel.get("stars")
+    deal = hotel.get("deal")
     amenities = hotel.get("amenities", [])
     url = hotel.get("url")
 
-    parts = [f"🏨 **{name}**"]
+    # Build hotel title with star class
+    title = f"🏨 **{name}**"
+    if stars:
+        title += f" ({stars}-star)"
+    parts = [title]
 
+    # Deal indicator
+    if deal:
+        parts.append(f"   🔥 {deal}")
+
+    # Price with detected currency
     if price is not None:
-        parts.append(f"   💰 Price: ${price:,.2f} per night")
+        symbol = CURRENCY_SYMBOLS.get(currency, currency + " ")
+        parts.append(f"   💰 Price: {symbol}{price:,.0f} per night")
 
+    # Rating
     if rating is not None:
-        # Star rating visual
         full_stars = int(rating)
         star_display = "⭐" * full_stars
         parts.append(f"   ⭐ Rating: {rating}/5 {star_display}")
 
+    # Amenities
     if amenities:
-        amenities_str = ", ".join(amenities[:8])  # Cap at 8 amenities for readability
+        amenities_str = ", ".join(amenities[:8])
         parts.append(f"   🛎️ Amenities: {amenities_str}")
 
+    # URL
     if url:
         parts.append(f"   🔗 URL: {url}")
 
@@ -305,7 +329,10 @@ def hotels_to_dicts(hotels: list) -> list[dict]:
         result.append({
             "name": h.name,
             "price": h.price,
+            "currency": h.currency,
             "rating": h.rating,
+            "stars": h.stars,
+            "deal": h.deal,
             "amenities": h.amenities if h.amenities else [],
             "url": h.url,
         })
@@ -375,13 +402,17 @@ async def search_hotels(
         hotel_dicts = hotels_to_dicts(result.hotels)
         resolved = resolve_location(location)
 
+        # Detect currency from first hotel
+        curr = hotel_dicts[0].get("currency", "USD") if hotel_dicts else "USD"
+        symbol = CURRENCY_SYMBOLS.get(curr, curr + " ")
+
         output = [
             f"🏨 Found {len(hotel_dicts)} hotel(s) in {resolved} "
             f"({checkin_date} → {checkout_date}):"
         ]
 
         if result.lowest_price:
-            output[0] += f" | Lowest price: ${result.lowest_price:,.2f}"
+            output[0] += f" | Lowest price: {symbol}{result.lowest_price:,.0f}"
 
         for hotel in hotel_dicts:
             output.append(format_hotel_info(hotel))
@@ -620,15 +651,15 @@ async def filter_hotels_by_price(
 ) -> list[str]:
     """Search hotels within a specific price range.
 
-    Use this when the user has a budget in mind, e.g. "hotels under $200"
-    or "hotels between $100 and $300 per night".
+    Use this when the user has a budget in mind, e.g. "hotels under 50000"
+    or "hotels between 20000 and 40000 per night".
 
     Args:
         location (str): City name, abbreviation, or IATA airport code.
         checkin_date (str): Check-in date in YYYY-MM-DD format.
         checkout_date (str): Check-out date in YYYY-MM-DD format.
-        min_price (float, optional): Minimum price per night in USD. Defaults to 0.
-        max_price (float, optional): Maximum price per night in USD. Defaults to 10000.
+        min_price (float, optional): Minimum price per night. Defaults to 0.
+        max_price (float, optional): Maximum price per night. Defaults to 10000.
         adults (int, optional): Number of adult guests. Defaults to 1.
         children (int, optional): Number of children. Defaults to 0.
         infants (int, optional): Number of infants. Defaults to 0.
@@ -674,16 +705,18 @@ async def filter_hotels_by_price(
         if not filtered:
             return [
                 f"No hotels found in '{location}' within the price range "
-                f"${min_price:,.0f} – ${max_price:,.0f} per night."
+                f"{min_price:,.0f} – {max_price:,.0f} per night."
             ]
 
         # Sort by price ascending
         filtered.sort(key=lambda h: parse_price(h["price"]))
 
         resolved = resolve_location(location)
+        curr = filtered[0].get("currency", "USD") if filtered else "USD"
+        symbol = CURRENCY_SYMBOLS.get(curr, curr + " ")
         output = [
             f"🏨 {len(filtered)} hotel(s) in {resolved} "
-            f"within ${min_price:,.0f} – ${max_price:,.0f}/night "
+            f"within {symbol}{min_price:,.0f} – {symbol}{max_price:,.0f}/night "
             f"({checkin_date} → {checkout_date}):"
         ]
 
@@ -850,11 +883,13 @@ async def compare_hotels_multi_location(
                 (parse_price(h["price"]) for h in hotel_dicts if h.get("price")),
                 default=None
             )
+            curr = hotel_dicts[0].get("currency", "USD") if hotel_dicts else "USD"
+            symbol = CURRENCY_SYMBOLS.get(curr, curr + " ")
             location_cheapest.append((resolved, cheapest))
 
             combined_output.append(
                 f"\n📍 {resolved}: {len(hotel_dicts)} hotel(s) found "
-                f"| Cheapest: ${cheapest:,.2f}" if cheapest else
+                f"| Cheapest: {symbol}{cheapest:,.0f}" if cheapest else
                 f"\n📍 {resolved}: {len(hotel_dicts)} hotel(s) found"
             )
 
@@ -875,10 +910,10 @@ async def compare_hotels_multi_location(
     if valid_prices:
         header += "\n💰 Price Comparison (cheapest per location):\n"
         for loc, price in valid_prices:
-            header += f"   {loc}: ${price:,.2f}\n"
+            header += f"   {loc}: {price:,.0f}\n"
 
         cheapest_loc = min(valid_prices, key=lambda x: x[1])
-        header += f"\n🏆 Cheapest location: {cheapest_loc[0]} at ${cheapest_loc[1]:,.2f}/night"
+        header += f"\n🏆 Cheapest location: {cheapest_loc[0]} at {cheapest_loc[1]:,.0f}/night"
 
     return [header] + combined_output
 
@@ -960,11 +995,13 @@ async def compare_hotels_multi_date(
                 (parse_price(h["price"]) for h in hotel_dicts if h.get("price")),
                 default=None
             )
+            curr = hotel_dicts[0].get("currency", "USD") if hotel_dicts else "USD"
+            symbol = CURRENCY_SYMBOLS.get(curr, curr + " ")
             date_cheapest.append((checkin, cheapest))
 
             combined_output.append(
                 f"\n📅 {checkin} → {checkout} ({nights} night{'s' if nights > 1 else ''}): "
-                f"{len(hotel_dicts)} hotel(s) | Cheapest: ${cheapest:,.2f}" if cheapest else
+                f"{len(hotel_dicts)} hotel(s) | Cheapest: {symbol}{cheapest:,.0f}" if cheapest else
                 f"\n📅 {checkin} → {checkout}: {len(hotel_dicts)} hotel(s)"
             )
 
@@ -985,10 +1022,10 @@ async def compare_hotels_multi_date(
     if valid_prices:
         header += "\n💰 Price Comparison (cheapest per date):\n"
         for date, price in valid_prices:
-            header += f"   {date}: ${price:,.2f}\n"
+            header += f"   {date}: {price:,.0f}\n"
 
         cheapest_date = min(valid_prices, key=lambda x: x[1])
-        header += f"\n🏆 Cheapest date: {cheapest_date[0]} at ${cheapest_date[1]:,.2f}/night"
+        header += f"\n🏆 Cheapest date: {cheapest_date[0]} at {cheapest_date[1]:,.0f}/night"
 
     return [header] + combined_output
 

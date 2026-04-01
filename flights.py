@@ -211,7 +211,7 @@ def parse_price(price_str: str) -> float:
 
 # Helper Functions
 
-def format_flight_info(flight_data, origin_airport, destination_airport):
+def format_flight_info(flight_data, origin_airport, destination_airport, origin_iata=None, destination_iata=None, departure_date=None):
     """
     Formats flight information into a human-readable string.
 
@@ -219,6 +219,9 @@ def format_flight_info(flight_data, origin_airport, destination_airport):
         flight_data: Dictionary containing flight information
         origin_airport: Name of Origin airport city and IATA code (ex: "Seattle (SEA)")
         destination_airport: Name of Destination airport city and IATA code (ex: "Tokyo (HND)")
+        origin_iata: IATA code of origin airport (e.g. "ISB") for URL generation
+        destination_iata: IATA code of destination airport (e.g. "DXB") for URL generation
+        departure_date: Departure date string (e.g. "2026-04-10") for URL generation
 
     Returns:
         Formatted string describing the flight
@@ -269,6 +272,16 @@ def format_flight_info(flight_data, origin_airport, destination_airport):
     # Handle potential None or empty values
     stops = flight_data["stops"]
     stops_text = f"{stops} stop{'s' if stops != 1 else ''}" if stops > 0 else "non-stop"
+
+    # Build Google Flights URL
+    url_line = ""
+    if origin_iata and destination_iata and departure_date:
+        airline_name = flight_data.get('name', '').replace(' ', '+')
+        url = (
+            f"https://www.google.com/travel/flights?q=Flights+from+"
+            f"{origin_iata}+to+{destination_iata}+on+{departure_date}"
+        )
+        url_line = f" You can view and book this flight at: {url}"
     
     formatted_string = (
         f"This flight departs at {expand_date(flight_data['departure'])} from {origin_airport}, local time, "
@@ -276,6 +289,7 @@ def format_flight_info(flight_data, origin_airport, destination_airport):
         f"The flight is operated by {flight_data['name']} and has a duration of {duration_formatted} "
         f"with {stops_text} in between. "
         f"And it's price is {flight_data['price']} and is {best_flight_qualifier}!"
+        f"{url_line}"
     )
     
     return formatted_string
@@ -454,7 +468,7 @@ async def get_general_flights_info(origin: str, destination: str, departure_date
         destination_airport = destination
 
         for flight in top_n_flights:
-            flight_info.append(format_flight_info(flight, origin_airport, destination_airport))
+            flight_info.append(format_flight_info(flight, origin_airport, destination_airport, origin_iata=origin, destination_iata=destination, departure_date=departure_date))
 
         output = [f"The current overall flight prices for this route and time are: {str(current_price)}."] + flight_info
 
@@ -551,7 +565,7 @@ async def get_cheapest_flights(origin: str, destination: str, departure_date: st
         destination_airport = destination
 
         for flight in top_n_flights:
-            flight_info.append(format_flight_info(flight, origin_airport, destination_airport))
+            flight_info.append(format_flight_info(flight, origin_airport, destination_airport, origin_iata=origin, destination_iata=destination, departure_date=departure_date))
 
         output = ["Here are the cheapest flights for this route and time: "] + flight_info
 
@@ -656,7 +670,7 @@ async def get_best_flights(origin: str, destination: str, departure_date: str,
         destination_airport = destination
 
         for flight in top_n_flights:
-            flight_info.append(format_flight_info(flight, origin_airport, destination_airport))
+            flight_info.append(format_flight_info(flight, origin_airport, destination_airport, origin_iata=origin, destination_iata=destination, departure_date=departure_date))
 
         output = ["Here are the best flights for this route and time: "] + flight_info
 
@@ -786,7 +800,7 @@ async def get_time_filtered_flights(state: str, target_time_str: str, origin: st
         destination_airport = destination
 
         for flight in top_n_flights:
-            flight_info.append(format_flight_info(flight, origin_airport, destination_airport))
+            flight_info.append(format_flight_info(flight, origin_airport, destination_airport, origin_iata=origin, destination_iata=destination, departure_date=departure_date))
 
         context_str = f"Here are the time-filtered flights {('before' if state == 'before' else 'on or after')} {target_time_str}: "
 
@@ -938,7 +952,7 @@ async def search_flights_multi_airport(
             combined_output.append(f"   Current price level: {current_price}")
 
             for flight in flights[:10]:  # Cap at 10 per airport to keep output manageable
-                combined_output.append(format_flight_info(flight, f"{origin_name} ({origin})", f"{dest_name} ({dest})"))
+                combined_output.append(format_flight_info(flight, f"{origin_name} ({origin})", f"{dest_name} ({dest})", origin_iata=origin, destination_iata=dest, departure_date=departure_date))
 
         except Exception as e:
             combined_output.append(f"\n⚠️ {dest_name} ({dest}): Error — {str(e)}")
@@ -1045,7 +1059,7 @@ async def search_flights_multi_date(
 
             # Show top 5 flights per date
             for flight in flights[:5]:
-                combined_output.append(format_flight_info(flight, f"{origin_name} ({origin})", f"{dest_name} ({destination})"))
+                combined_output.append(format_flight_info(flight, f"{origin_name} ({origin})", f"{dest_name} ({destination})", origin_iata=origin, destination_iata=destination, departure_date=date))
 
         except Exception as e:
             combined_output.append(f"\n📅 {date}: Error — {str(e)}")

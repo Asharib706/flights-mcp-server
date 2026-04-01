@@ -373,14 +373,16 @@ wheels = [
 [[package]]
 name = "fast-hotels"
 version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "fast_hotels_local" }
 dependencies = [
     { name = "playwright" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/63/bb/cef66be9279bbf6f18ca975bbe6211a88a8ae211e25d7a47c85ec5347f1b/fast_hotels-0.2.1.tar.gz", hash = "sha256:6eb3fb8f3215560cde671475a97dc6a3d8d16acd00d2d7d9cd6bd9dcf9a314c7", size = 12781, upload-time = "2025-06-26T01:19:26.353Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/00/54/c3da3eb7f64950a54b2473c76526205363992c1037f1cbc069ae263dd30f/fast_hotels-0.2.1-py3-none-any.whl", hash = "sha256:e2c9b2ca58eed1225925ac5c5d9b5c63400a10c593772e1bca75d563a7eb4fe2", size = 14420, upload-time = "2025-06-26T01:19:25.153Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "playwright", specifier = ">=1.40.0" },
+    { name = "requests", specifier = ">=2.31.0" },
 ]
 
 [[package]]
@@ -519,7 +521,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fast-flights", specifier = ">=2.2" },
-    { name = "fast-hotels", specifier = ">=0.2.1" },
+    { name = "fast-hotels", editable = "fast_hotels_local" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "langchain", specifier = ">=1.2.10" },
     { name = "langchain-google-genai" },
