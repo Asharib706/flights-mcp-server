@@ -13,6 +13,7 @@ export default function Home() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [statsFlights, setStatsFlights] = useState(0);
+  const [statsHotels, setStatsHotels] = useState(0);
   const [statsTools, setStatsTools] = useState(0);
   const [statsTime, setStatsTime] = useState<string>("—");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -88,6 +89,8 @@ export default function Home() {
                   event.tool_name?.includes("airport")
                 ) {
                   setStatsFlights((f) => f + 1);
+                } else if (event.tool_name?.includes("hotel")) {
+                  setStatsHotels((h) => h + 1);
                 }
                 break;
 
@@ -157,6 +160,7 @@ export default function Home() {
     setMessages([]);
     setSessionId(null);
     setStatsFlights(0);
+    setStatsHotels(0);
     setStatsTools(0);
     setStatsTime("—");
   }, [sessionId]);
@@ -258,6 +262,7 @@ export default function Home() {
             >
               {[
                 { icon: "✈️", label: "Flights", val: statsFlights },
+                { icon: "🏨", label: "Hotels", val: statsHotels },
                 { icon: "⚡", label: "Response", val: statsTime },
                 { icon: "🔧", label: "Tools", val: statsTools },
               ].map((s, i) => (

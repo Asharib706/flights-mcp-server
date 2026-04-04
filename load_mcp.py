@@ -1,5 +1,5 @@
 import os
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -26,23 +26,24 @@ async def load_all_tools():
         cwd=repo_dir,
     )
 
-    print("Connecting to flights.py MCP Server...")
-    async with stdio_client(flights_params) as (f_read, f_write):
-        async with ClientSession(f_read, f_write) as flights_session:
-            await flights_session.initialize()
-            flight_tools = await load_mcp_tools(flights_session)
-            print(f"Loaded {len(flight_tools)} tools from flights.py")
+    async with AsyncExitStack() as stack:
+        print("Connecting to flights.py MCP Server...")
+        f_read, f_write = await stack.enter_async_context(stdio_client(flights_params))
+        flights_session = await stack.enter_async_context(ClientSession(f_read, f_write))
+        await flights_session.initialize()
+        flight_tools = await load_mcp_tools(flights_session)
+        print(f"Loaded {len(flight_tools)} tools from flights.py")
 
-            print("Connecting to hotels.py MCP Server...")
-            async with stdio_client(hotels_params) as (h_read, h_write):
-                async with ClientSession(h_read, h_write) as hotels_session:
-                    await hotels_session.initialize()
-                    hotel_tools = await load_mcp_tools(hotels_session)
-                    print(f"Loaded {len(hotel_tools)} tools from hotels.py")
+        print("Connecting to hotels.py MCP Server...")
+        h_read, h_write = await stack.enter_async_context(stdio_client(hotels_params))
+        hotels_session = await stack.enter_async_context(ClientSession(h_read, h_write))
+        await hotels_session.initialize()
+        hotel_tools = await load_mcp_tools(hotels_session)
+        print(f"Loaded {len(hotel_tools)} tools from hotels.py")
 
-                    all_tools = flight_tools + hotel_tools
-                    print(f"Total tools available: {len(all_tools)}")
-                    yield all_tools
+        all_tools = flight_tools + hotel_tools
+        print(f"Total tools available: {len(all_tools)}")
+        yield all_tools
 
 
 # Backwards-compatible alias for any code still importing load_flight_tools

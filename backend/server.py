@@ -24,6 +24,9 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -36,7 +39,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from load_mcp import load_all_tools
 
 # ── LLM Provider Configuration ──────────────────────────────────────────────
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "lmstudio").lower()
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
 
 
 def create_llm():
@@ -104,22 +107,18 @@ async def lifespan(app: FastAPI):
     global mcp_tools, agent_executor
 
     # We need to keep the MCP context alive for the lifetime of the server.
-    # Use an async generator pattern to manage the context.
-    mcp_cm = load_all_tools()
-    tools = await mcp_cm.__aenter__()
-    mcp_tools = tools
+    # Use `async with` so the contexts remain properly nested in the same task.
+    async with load_all_tools() as tools:
+        mcp_tools = tools
 
-    llm = create_llm()
+        llm = create_llm()
 
-    from langgraph.prebuilt import create_react_agent
-    agent_executor = create_react_agent(model=llm, tools=tools, prompt=SYSTEM_PROMPT)
+        from langgraph.prebuilt import create_react_agent
+        agent_executor = create_react_agent(model=llm, tools=tools, prompt=SYSTEM_PROMPT)
 
-    print(f"✅ Server ready | LLM: {LLM_PROVIDER} | Tools: {len(tools)}")
+        print(f"✅ Server ready | LLM: {LLM_PROVIDER} | Tools: {len(tools)}")
 
-    yield
-
-    # Cleanup
-    await mcp_cm.__aexit__(None, None, None)
+        yield
 
 
 # ── FastAPI App ──────────────────────────────────────────────────────────────
@@ -127,7 +126,14 @@ app = FastAPI(title="Flights Chatbot API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000",
+        "http://localhost:3001", 
+        "http://127.0.0.1:3001",
+        "http://localhost:3002",
+        "http://127.0.0.1:3002"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -18,7 +18,16 @@ export interface Message {
 }
 
 /* ── Simple markdown-like rendering ─────────────────────────────────────── */
-function renderMarkdown(text: string): React.ReactNode {
+function renderMarkdown(rawText: any): React.ReactNode {
+  let text = "";
+  if (typeof rawText === "string") {
+    text = rawText;
+  } else if (Array.isArray(rawText)) {
+    text = rawText.map(t => typeof t === "string" ? t : (t.text || JSON.stringify(t))).join("");
+  } else if (rawText != null) {
+    text = JSON.stringify(rawText);
+  }
+
   const lines = text.split("\n");
   const elements: React.ReactNode[] = [];
   let listItems: string[] = [];
