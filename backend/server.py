@@ -33,10 +33,14 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from langchain_core.messages import HumanMessage, AIMessage
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # ── Add parent directory to path so we can import load_mcp ───────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from load_mcp import load_all_tools
+from db import async_session
+from models import ChatSession, ChatMessage
 
 # ── LLM Provider Configuration ──────────────────────────────────────────────
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
@@ -93,8 +97,57 @@ SYSTEM_PROMPT = (
 )
 
 
-# ── Session Storage (in-memory) ──────────────────────────────────────────────
-sessions: dict[str, list] = {}
+# ── Persistence helpers ──────────────────────────────────────────────────────
+# Chat history now lives in Postgres (see db.py, models.py) instead of an
+# in-memory dict, so it survives restarts and works across multiple workers.
+
+CHAT_HISTORY_LIMIT = 20  # capped so token cost doesn't grow unbounded per session
+
+
+async def get_or_create_chat_session(db: AsyncSession, session_id: str | None) -> ChatSession:
+    """Look up an existing chat session by id, or create a new one."""
+    if session_id:
+        try:
+            sid = uuid.UUID(session_id)
+        except ValueError:
+            sid = None
+        if sid is not None:
+            result = await db.execute(select(ChatSession).where(ChatSession.id == sid))
+            existing = result.scalar_one_or_none()
+            if existing is not None:
+                return existing
+
+    new_session = ChatSession()
+    db.add(new_session)
+    await db.flush()  # populate the server-generated id
+    return new_session
+
+
+async def load_recent_messages(
+    db: AsyncSession, chat_session_id, limit: int = CHAT_HISTORY_LIMIT
+) -> list[ChatMessage]:
+    """Load the last `limit` messages for a session, oldest first."""
+    result = await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == chat_session_id)
+        .order_by(ChatMessage.created_at.desc())
+        .limit(limit)
+    )
+    rows = list(result.scalars().all())
+    rows.reverse()
+    return rows
+
+
+def history_to_lc_messages(rows: list[ChatMessage]) -> list:
+    """Convert stored ChatMessage rows into LangChain message objects for the agent."""
+    messages: list = []
+    for row in rows:
+        if row.role == "user":
+            messages.append(HumanMessage(content=row.content))
+        elif row.role == "ai":
+            messages.append(AIMessage(content=row.content))
+    return messages
+
 
 # ── Global MCP context holder ────────────────────────────────────────────────
 mcp_tools = None
@@ -161,25 +214,29 @@ async def health():
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     """Stream agent responses via Server-Sent Events (SSE)."""
-    session_id = request.session_id or str(uuid.uuid4())
     user_msg = request.message.strip()
 
     if not user_msg:
-        return {"error": "Empty message", "session_id": session_id}
+        return {"error": "Empty message", "session_id": request.session_id}
 
-    # Get or create session history
-    if session_id not in sessions:
-        sessions[session_id] = []
+    # Resolve (or create) the chat session and load its recent history from Postgres.
+    async with async_session() as db:
+        chat_session = await get_or_create_chat_session(db, request.session_id)
+        session_id = str(chat_session.id)
 
-    chat_history = sessions[session_id]
-    chat_history.append(HumanMessage(content=user_msg))
+        history_rows = await load_recent_messages(db, chat_session.id)
+        chat_history = history_to_lc_messages(history_rows)
+        chat_history.append(HumanMessage(content=user_msg))
+
+        db.add(ChatMessage(session_id=chat_session.id, role="user", content=user_msg))
+        await db.commit()
 
     async def event_stream() -> AsyncGenerator[str, None]:
         """Generate SSE events from the agent stream."""
         try:
             inputs = {"messages": chat_history}
             final_ai_content = ""
-            tool_events = []
+            collected_tool_events: list[dict] = []
 
             async for event in agent_executor.astream(inputs, stream_mode="values"):
                 message = event["messages"][-1]
@@ -200,6 +257,10 @@ async def chat(request: ChatRequest):
 
                     if hasattr(message, "tool_calls") and message.tool_calls:
                         for tc in message.tool_calls:
+                            collected_tool_events.append({
+                                "type": "tool_call",
+                                "tool_name": tc["name"],
+                            })
                             tool_data = json.dumps({
                                 "type": "tool_call",
                                 "tool_name": tc["name"],
@@ -208,15 +269,27 @@ async def chat(request: ChatRequest):
                             yield f"data: {tool_data}\n\n"
 
                 elif message.type == "tool":
+                    result_content = str(message.content)[:500]
+                    collected_tool_events.append({
+                        "type": "tool_result",
+                        "content": result_content,
+                    })
                     tool_result = json.dumps({
                         "type": "tool_result",
-                        "content": str(message.content)[:500],
+                        "content": result_content,
                         "session_id": session_id,
                     })
                     yield f"data: {tool_result}\n\n"
 
-            # Update session history with the final state
-            sessions[session_id] = event["messages"]
+            # Persist the AI turn (with any tool badges) now that streaming is done.
+            async with async_session() as db:
+                db.add(ChatMessage(
+                    session_id=chat_session.id,
+                    role="ai",
+                    content=final_ai_content,
+                    tool_events=collected_tool_events or None,
+                ))
+                await db.commit()
 
             # Send done event
             done = json.dumps({"type": "done", "session_id": session_id})
@@ -245,6 +318,13 @@ async def chat(request: ChatRequest):
 async def reset_session(request: ChatRequest):
     """Reset a chat session to clear history."""
     session_id = request.session_id
-    if session_id and session_id in sessions:
-        del sessions[session_id]
+    if session_id:
+        try:
+            sid = uuid.UUID(session_id)
+        except ValueError:
+            sid = None
+        if sid is not None:
+            async with async_session() as db:
+                await db.execute(delete(ChatSession).where(ChatSession.id == sid))
+                await db.commit()
     return {"status": "reset", "session_id": session_id}
