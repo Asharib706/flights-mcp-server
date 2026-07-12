@@ -27,7 +27,7 @@ from typing import AsyncGenerator
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -40,7 +40,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from load_mcp import load_all_tools
 from db import async_session
-from models import ChatSession, ChatMessage
+from models import ChatSession, ChatMessage, User
+from auth import (
+    COOKIE_NAME,
+    COOKIE_SECURE,
+    JWT_EXPIRES,
+    create_access_token,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
 
 # ── LLM Provider Configuration ──────────────────────────────────────────────
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
@@ -104,20 +113,28 @@ SYSTEM_PROMPT = (
 CHAT_HISTORY_LIMIT = 20  # capped so token cost doesn't grow unbounded per session
 
 
-async def get_or_create_chat_session(db: AsyncSession, session_id: str | None) -> ChatSession:
-    """Look up an existing chat session by id, or create a new one."""
+async def get_or_create_chat_session(
+    db: AsyncSession, session_id: str | None, user_id: uuid.UUID
+) -> ChatSession:
+    """Look up a session by id *owned by this user*, or create a new one.
+
+    Requiring the user_id match (not just the id) is what stops one user from
+    reading another user's history by guessing/reusing a session_id.
+    """
     if session_id:
         try:
             sid = uuid.UUID(session_id)
         except ValueError:
             sid = None
         if sid is not None:
-            result = await db.execute(select(ChatSession).where(ChatSession.id == sid))
+            result = await db.execute(
+                select(ChatSession).where(ChatSession.id == sid, ChatSession.user_id == user_id)
+            )
             existing = result.scalar_one_or_none()
             if existing is not None:
                 return existing
 
-    new_session = ChatSession()
+    new_session = ChatSession(user_id=user_id)
     db.add(new_session)
     await db.flush()  # populate the server-generated id
     return new_session
@@ -147,6 +164,26 @@ def history_to_lc_messages(rows: list[ChatMessage]) -> list:
         elif row.role == "ai":
             messages.append(AIMessage(content=row.content))
     return messages
+
+
+def stringify_ai_content(content) -> str:
+    """Flatten an AI message's content to plain text.
+
+    Gemini sometimes returns a list of content blocks (e.g. carrying a
+    thought-signature) instead of a plain string; chat_messages.content is a
+    text column, so this normalizes either shape before it's stored or sent.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and "text" in block:
+                parts.append(block["text"])
+        return "".join(parts)
+    return str(content) if content else ""
 
 
 # ── Global MCP context holder ────────────────────────────────────────────────
@@ -199,6 +236,38 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
 
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    display_name: str | None = None
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+def user_out(user: User) -> dict:
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "display_name": user.display_name,
+        "onboarding_done": user.onboarding_done,
+    }
+
+
+def set_session_cookie(response: Response, user_id: uuid.UUID) -> None:
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=create_access_token(user_id),
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite="lax",
+        max_age=int(JWT_EXPIRES.total_seconds()),
+        path="/",
+    )
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 
@@ -211,8 +280,60 @@ async def health():
     }
 
 
+@app.post("/api/auth/register")
+async def register(payload: RegisterRequest, response: Response):
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="A valid email is required")
+    if len(payload.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    async with async_session() as db:
+        existing = await db.execute(select(User).where(User.email == email))
+        if existing.scalar_one_or_none() is not None:
+            raise HTTPException(status_code=409, detail="An account with this email already exists")
+
+        user = User(
+            email=email,
+            password_hash=hash_password(payload.password),
+            display_name=payload.display_name,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    set_session_cookie(response, user.id)
+    return user_out(user)
+
+
+@app.post("/api/auth/login")
+async def login(payload: LoginRequest, response: Response):
+    email = payload.email.strip().lower()
+
+    async with async_session() as db:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
+
+    set_session_cookie(response, user.id)
+    return user_out(user)
+
+
+@app.post("/api/auth/logout")
+async def logout(response: Response):
+    response.delete_cookie(COOKIE_NAME, path="/")
+    return {"status": "logged_out"}
+
+
+@app.get("/api/auth/me")
+async def me(current_user: User = Depends(get_current_user)):
+    return user_out(current_user)
+
+
 @app.post("/api/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, current_user: User = Depends(get_current_user)):
     """Stream agent responses via Server-Sent Events (SSE)."""
     user_msg = request.message.strip()
 
@@ -221,7 +342,7 @@ async def chat(request: ChatRequest):
 
     # Resolve (or create) the chat session and load its recent history from Postgres.
     async with async_session() as db:
-        chat_session = await get_or_create_chat_session(db, request.session_id)
+        chat_session = await get_or_create_chat_session(db, request.session_id, current_user.id)
         session_id = str(chat_session.id)
 
         history_rows = await load_recent_messages(db, chat_session.id)
@@ -247,10 +368,10 @@ async def chat(request: ChatRequest):
 
                 if message.type == "ai":
                     if message.content:
-                        final_ai_content = message.content
+                        final_ai_content = stringify_ai_content(message.content)
                         data = json.dumps({
                             "type": "ai_message",
-                            "content": message.content,
+                            "content": final_ai_content,
                             "session_id": session_id,
                         })
                         yield f"data: {data}\n\n"
@@ -315,7 +436,7 @@ async def chat(request: ChatRequest):
 
 
 @app.post("/api/reset")
-async def reset_session(request: ChatRequest):
+async def reset_session(request: ChatRequest, current_user: User = Depends(get_current_user)):
     """Reset a chat session to clear history."""
     session_id = request.session_id
     if session_id:
@@ -325,6 +446,10 @@ async def reset_session(request: ChatRequest):
             sid = None
         if sid is not None:
             async with async_session() as db:
-                await db.execute(delete(ChatSession).where(ChatSession.id == sid))
+                await db.execute(
+                    delete(ChatSession).where(
+                        ChatSession.id == sid, ChatSession.user_id == current_user.id
+                    )
+                )
                 await db.commit()
     return {"status": "reset", "session_id": session_id}
