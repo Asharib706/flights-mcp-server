@@ -27,20 +27,20 @@ from typing import AsyncGenerator
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from langchain_core.messages import HumanMessage, AIMessage
-from sqlalchemy import select, delete
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # ── Add parent directory to path so we can import load_mcp ───────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from load_mcp import load_all_tools
 from db import async_session
-from models import ChatSession, ChatMessage, User
+from models import ChatSession, ChatMessage, User, UserMemory
 from auth import (
     COOKIE_NAME,
     COOKIE_SECURE,
@@ -49,6 +49,13 @@ from auth import (
     get_current_user,
     hash_password,
     verify_password,
+)
+from memory import (
+    delete_fact,
+    load_user_memory,
+    render_memory_for_prompt,
+    run_memory_extraction,
+    upsert_fact,
 )
 
 # ── LLM Provider Configuration ──────────────────────────────────────────────
@@ -189,12 +196,13 @@ def stringify_ai_content(content) -> str:
 # ── Global MCP context holder ────────────────────────────────────────────────
 mcp_tools = None
 agent_executor = None
+llm = None  # kept separately from agent_executor for the memory-extraction background task
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start MCP connection and agent on server startup; clean up on shutdown."""
-    global mcp_tools, agent_executor
+    global mcp_tools, agent_executor, llm
 
     # We need to keep the MCP context alive for the lifetime of the server.
     # Use `async with` so the contexts remain properly nested in the same task.
@@ -245,6 +253,16 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class OnboardingRequest(BaseModel):
+    home_airport: str | None = None
+    trip_type: str | None = None
+    budget_band: str | None = None
+    cabin_class: str | None = None
+    interests: list[str] = []
+    travel_frequency: str | None = None
+    constraints: str | None = None
 
 
 def user_out(user: User) -> dict:
@@ -332,8 +350,71 @@ async def me(current_user: User = Depends(get_current_user)):
     return user_out(current_user)
 
 
+@app.post("/api/onboarding")
+async def submit_onboarding(
+    payload: OnboardingRequest, current_user: User = Depends(get_current_user)
+):
+    """One-time onboarding questionnaire; seeds the user's memory profile."""
+    facts: dict[str, tuple[str, str]] = {}  # key -> (value, category)
+    if payload.home_airport:
+        facts["home_airport"] = (payload.home_airport.strip().upper(), "fact")
+    if payload.trip_type:
+        facts["trip_type"] = (payload.trip_type, "preference")
+    if payload.budget_band:
+        facts["budget_band"] = (payload.budget_band, "preference")
+    if payload.cabin_class:
+        facts["cabin_class"] = (payload.cabin_class, "preference")
+    if payload.interests:
+        facts["interests"] = (", ".join(payload.interests), "interest")
+    if payload.travel_frequency:
+        facts["travel_frequency"] = (payload.travel_frequency, "fact")
+    if payload.constraints:
+        facts["constraints"] = (payload.constraints, "constraint")
+
+    async with async_session() as db:
+        for key, (value, category) in facts.items():
+            await upsert_fact(db, current_user.id, key, value, category, 1.0, "onboarding")
+        await db.execute(
+            update(User).where(User.id == current_user.id).values(onboarding_done=True)
+        )
+        await db.commit()
+
+    return {"status": "onboarding_complete"}
+
+
+@app.get("/api/memory")
+async def get_memory(current_user: User = Depends(get_current_user)):
+    """What SkyMind currently knows about this traveler."""
+    async with async_session() as db:
+        rows = await load_user_memory(db, current_user.id)
+    return [
+        {
+            "key": r.key,
+            "value": r.value,
+            "category": r.category,
+            "source": r.source,
+            "confidence": r.confidence,
+            "updated_at": r.updated_at.isoformat(),
+        }
+        for r in rows
+    ]
+
+
+@app.delete("/api/memory/{key}")
+async def forget_memory(key: str, current_user: User = Depends(get_current_user)):
+    """Let a user remove a single remembered fact."""
+    async with async_session() as db:
+        await delete_fact(db, current_user.id, key)
+        await db.commit()
+    return {"status": "deleted", "key": key}
+
+
 @app.post("/api/chat")
-async def chat(request: ChatRequest, current_user: User = Depends(get_current_user)):
+async def chat(
+    request: ChatRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
     """Stream agent responses via Server-Sent Events (SSE)."""
     user_msg = request.message.strip()
 
@@ -345,9 +426,14 @@ async def chat(request: ChatRequest, current_user: User = Depends(get_current_us
         chat_session = await get_or_create_chat_session(db, request.session_id, current_user.id)
         session_id = str(chat_session.id)
 
+        memory_rows = await load_user_memory(db, current_user.id)
         history_rows = await load_recent_messages(db, chat_session.id)
         chat_history = history_to_lc_messages(history_rows)
         chat_history.append(HumanMessage(content=user_msg))
+
+        memory_line = render_memory_for_prompt(memory_rows)
+        if memory_line:
+            chat_history = [SystemMessage(content=memory_line)] + chat_history
 
         db.add(ChatMessage(session_id=chat_session.id, role="user", content=user_msg))
         await db.commit()
@@ -412,6 +498,13 @@ async def chat(request: ChatRequest, current_user: User = Depends(get_current_us
                 ))
                 await db.commit()
 
+            # Best-effort: let memory catch up on anything durable from this
+            # turn *after* the response is sent, so it never adds latency.
+            if final_ai_content:
+                background_tasks.add_task(
+                    run_memory_extraction, llm, current_user.id, user_msg, final_ai_content
+                )
+
             # Send done event
             done = json.dumps({"type": "done", "session_id": session_id})
             yield f"data: {done}\n\n"
@@ -432,6 +525,7 @@ async def chat(request: ChatRequest, current_user: User = Depends(get_current_us
             "Connection": "keep-alive",
             "X-Session-ID": session_id,
         },
+        background=background_tasks,
     )
 
 
