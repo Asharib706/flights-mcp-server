@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 /* ── Types ──────────────────────────────────────────────────────────────── */
 export interface ToolEvent {
@@ -17,106 +19,16 @@ export interface Message {
   isStreaming?: boolean;
 }
 
-/* ── Simple markdown-like rendering ─────────────────────────────────────── */
-function renderMarkdown(rawText: any): React.ReactNode {
-  let text = "";
-  if (typeof rawText === "string") {
-    text = rawText;
-  } else if (Array.isArray(rawText)) {
-    text = rawText.map(t => typeof t === "string" ? t : (t.text || JSON.stringify(t))).join("");
-  } else if (rawText != null) {
-    text = JSON.stringify(rawText);
+/** Content from the backend is always plain text (see server.py's stringify_ai_content),
+ * but stay defensive here in case a raw LangChain content-block list ever slips through. */
+function toPlainText(raw: unknown): string {
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw)) {
+    return raw
+      .map((t) => (typeof t === "string" ? t : (t as { text?: string })?.text || ""))
+      .join("");
   }
-
-  const lines = text.split("\n");
-  const elements: React.ReactNode[] = [];
-  let listItems: string[] = [];
-
-  const flushList = () => {
-    if (listItems.length > 0) {
-      elements.push(
-        <ul key={`ul-${elements.length}`} className="list-disc pl-5 my-1 space-y-0.5">
-          {listItems.map((item, i) => (
-            <li key={i}>{processInline(item)}</li>
-          ))}
-        </ul>
-      );
-      listItems = [];
-    }
-  };
-
-  const processInline = (text: string): React.ReactNode => {
-    const parts = text.split(/(\*\*[^*]+\*\*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return (
-          <strong key={i} className="font-semibold" style={{ color: "var(--text)" }}>
-            {part.slice(2, -2)}
-          </strong>
-        );
-      }
-      const codeParts = part.split(/(`[^`]+`)/g);
-      return codeParts.map((cp, j) => {
-        if (cp.startsWith("`") && cp.endsWith("`")) {
-          return (
-            <code
-              key={`${i}-${j}`}
-              className="px-1.5 py-0.5 rounded text-[0.85em]"
-              style={{ background: "rgba(0,194,255,0.08)", color: "var(--sky)" }}
-            >
-              {cp.slice(1, -1)}
-            </code>
-          );
-        }
-        return cp;
-      });
-    });
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    if (trimmed.startsWith("### ")) {
-      flushList();
-      elements.push(
-        <h3
-          key={`h3-${i}`}
-          className="text-sm font-bold mt-3 mb-1"
-          style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--text)" }}
-        >
-          {processInline(trimmed.slice(4))}
-        </h3>
-      );
-      continue;
-    }
-    if (trimmed.startsWith("## ")) {
-      flushList();
-      elements.push(
-        <h2
-          key={`h2-${i}`}
-          className="text-base font-bold mt-3 mb-1"
-          style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--text)" }}
-        >
-          {processInline(trimmed.slice(3))}
-        </h2>
-      );
-      continue;
-    }
-    if (trimmed.startsWith("- ") || trimmed.startsWith("* ") || /^\d+\.\s/.test(trimmed)) {
-      listItems.push(trimmed.replace(/^[-*]\s|^\d+\.\s/, ""));
-      continue;
-    }
-    if (trimmed === "") { flushList(); continue; }
-    flushList();
-    elements.push(
-      <p key={`p-${i}`} className="my-1">
-        {processInline(trimmed)}
-      </p>
-    );
-  }
-  flushList();
-  return elements;
+  return raw == null ? "" : JSON.stringify(raw);
 }
 
 /* ── Tool Event Badge ────────────────────────────────────────────────────── */
@@ -161,6 +73,7 @@ function TypingIndicator() {
 export default function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
   const isDone = !message.isStreaming;
+  const text = toPlainText(message.content);
 
   return (
     <div
@@ -168,16 +81,13 @@ export default function MessageBubble({ message }: { message: Message }) {
     >
       {/* Avatar */}
       <div
-        className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 shadow-lg ${
+        className={`w-9 h-9 md:w-10 md:h-10 rounded-2xl flex items-center justify-center text-lg md:text-xl flex-shrink-0 shadow-lg ${
           isUser ? "animate-fade-in" : "animate-float"
         }`}
         style={{
-          background: isUser 
-            ? "linear-gradient(135deg, var(--horizon), var(--sun))" 
-            : "linear-gradient(135deg, var(--sky), var(--success))",
-          boxShadow: isUser 
-            ? "0 4px 12px rgba(255,107,53,0.2)" 
-            : "0 4px 12px rgba(0,194,255,0.3)",
+          background: isUser
+            ? "linear-gradient(135deg, var(--accent-2), var(--accent))"
+            : "linear-gradient(135deg, var(--accent), var(--accent-2))",
         }}
       >
         {isUser ? "👤" : "🤖"}
@@ -200,26 +110,22 @@ export default function MessageBubble({ message }: { message: Message }) {
         <div
           className={`${
             isUser
-              ? "rounded-[2rem] rounded-tr-none px-6 py-4 md:py-5 text-white"
-              : "rounded-[2rem] rounded-tl-none px-7 py-5 md:py-6 border"
+              ? "rounded-[1.75rem] rounded-tr-md px-5 py-3.5 md:px-6 md:py-4"
+              : "rounded-[1.75rem] rounded-tl-md px-5 py-4 md:px-6 md:py-5 border"
           }`}
           style={
             isUser
-              ? {
-                  background: "linear-gradient(135deg, var(--sky), #007ACC)",
-                  boxShadow: "0 10px 30px -10px rgba(0,194,255,0.4)",
-                }
-              : {
-                  background: "rgba(15, 23, 42, 0.6)",
-                  backdropFilter: "blur(24px)",
-                  borderColor: "var(--glass-border)",
-                  boxShadow: "0 12px 40px -12px rgba(0,0,0,0.5)",
-                }
+              ? { background: "var(--accent)", color: "var(--on-accent)" }
+              : { background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }
           }
         >
-          {message.content ? (
-            <div className={`prose-chat ${isUser ? "text-white" : ""}`} style={isUser ? {} : { color: "var(--text)" }}>
-              {isUser ? message.content : renderMarkdown(message.content)}
+          {text ? (
+            <div className="prose-chat">
+              {isUser ? (
+                <p className="whitespace-pre-wrap m-0">{text}</p>
+              ) : (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+              )}
             </div>
           ) : (
             !isUser && message.isStreaming && <TypingIndicator />

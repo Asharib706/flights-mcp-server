@@ -44,7 +44,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # ── Add parent directory to path so we can import load_mcp ───────────────────
@@ -527,6 +527,12 @@ async def chat(
                     content=final_ai_content,
                     tool_events=collected_tool_events or None,
                 ))
+                # Without this, chat_sessions.updated_at never changes after creation
+                # (inserting a child chat_messages row doesn't touch the parent), which
+                # would break the sidebar's "most recently active" ordering.
+                await db.execute(
+                    update(ChatSession).where(ChatSession.id == chat_session.id).values(updated_at=func.now())
+                )
                 await db.commit()
 
             # Best-effort: let memory catch up on anything durable from this
@@ -586,3 +592,69 @@ async def reset_session(request: ChatRequest, current_user: User = Depends(get_c
                 )
                 await db.commit()
     return {"status": "reset", "session_id": session_id}
+
+
+@app.get("/api/sessions")
+async def list_sessions(current_user: User = Depends(get_current_user)):
+    """The authenticated user's chat sessions, most recently active first."""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ChatSession)
+            .where(ChatSession.user_id == current_user.id, ChatSession.archived.is_(False))
+            .order_by(ChatSession.updated_at.desc())
+            .limit(50)
+        )
+        sessions = list(result.scalars().all())
+
+        out = []
+        for s in sessions:
+            preview_result = await db.execute(
+                select(ChatMessage.content)
+                .where(ChatMessage.session_id == s.id, ChatMessage.role == "user")
+                .order_by(ChatMessage.created_at.asc())
+                .limit(1)
+            )
+            first_user_msg = preview_result.scalar_one_or_none()
+            out.append({
+                "id": str(s.id),
+                "title": s.title or (first_user_msg[:60] if first_user_msg else "New conversation"),
+                "created_at": s.created_at.isoformat(),
+                "updated_at": s.updated_at.isoformat(),
+            })
+    return out
+
+
+@app.get("/api/sessions/{session_id}/messages")
+async def get_session_messages(session_id: str, current_user: User = Depends(get_current_user)):
+    """Full message history for one session (for loading it back into the UI)."""
+    try:
+        sid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    async with async_session() as db:
+        session_result = await db.execute(
+            select(ChatSession).where(ChatSession.id == sid, ChatSession.user_id == current_user.id)
+        )
+        # 404 either way (not found vs. not yours) so this can't be used to probe
+        # for the existence of another user's session id.
+        if session_result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        result = await db.execute(
+            select(ChatMessage)
+            .where(ChatMessage.session_id == sid)
+            .order_by(ChatMessage.created_at.asc())
+        )
+        messages = list(result.scalars().all())
+
+    return [
+        {
+            "id": str(m.id),
+            "role": m.role,
+            "content": m.content,
+            "tool_events": m.tool_events,
+            "created_at": m.created_at.isoformat(),
+        }
+        for m in messages
+    ]

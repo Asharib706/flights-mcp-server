@@ -1,13 +1,39 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import ChatWindow from "../components/ChatWindow";
 import ChatInput from "../components/ChatInput";
 import Sidebar from "../components/Sidebar";
+import OnboardingModal from "../components/OnboardingModal";
+import ThemeToggle from "../components/ThemeToggle";
+import { LogoBadge } from "../components/Logo";
+import { useAuth } from "../components/AuthProvider";
 import { Message, ToolEvent } from "../components/MessageBubble";
-import { streamChat, resetSession, ChatEvent } from "../lib/api";
+import {
+  streamChat,
+  listSessions,
+  getSessionMessages,
+  StoredMessage,
+  ChatEvent,
+} from "../lib/api";
+
+function storedToUIMessages(rows: StoredMessage[]): Message[] {
+  return rows
+    .filter((m): m is StoredMessage & { role: "user" | "ai" } => m.role === "user" || m.role === "ai")
+    .map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      toolEvents: m.tool_events || undefined,
+      isStreaming: false,
+    }));
+}
 
 export default function Home() {
+  const { user, loading: authLoading, refresh: refreshAuth } = useAuth();
+  const router = useRouter();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -17,8 +43,35 @@ export default function Home() {
   const [statsTools, setStatsTools] = useState(0);
   const [statsTime, setStatsTime] = useState<string>("—");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const startTimeRef = useRef<number>(0);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Redirect unauthenticated visitors to /login.
+  useEffect(() => {
+    if (!authLoading && !user) router.replace("/login");
+  }, [authLoading, user, router]);
+
+  // Show the onboarding questionnaire once, right after it's needed.
+  useEffect(() => {
+    if (user && !user.onboarding_done) setShowOnboarding(true);
+  }, [user]);
+
+  // On first load, restore the most recently active session instead of always starting blank.
+  useEffect(() => {
+    if (!user || historyLoaded) return;
+    setHistoryLoaded(true);
+    listSessions()
+      .then(async (sessions) => {
+        if (sessions.length === 0) return;
+        const rows = await getSessionMessages(sessions[0].id);
+        setMessages(storedToUIMessages(rows));
+        setSessionId(sessions[0].id);
+      })
+      .catch(() => {});
+  }, [user, historyLoaded]);
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -49,7 +102,7 @@ export default function Home() {
       try {
         let currentSessionId = sessionId;
         let latestContent = "";
-        let toolEvents: ToolEvent[] = [];
+        const toolEvents: ToolEvent[] = [];
 
         await streamChat(
           text,
@@ -111,6 +164,7 @@ export default function Home() {
                 setStatsTime(
                   ((Date.now() - startTimeRef.current) / 1000).toFixed(1) + "s"
                 );
+                setRefreshKey((k) => k + 1);
                 break;
 
               case "error":
@@ -132,18 +186,25 @@ export default function Home() {
         );
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") return;
+        const isAuthError = (err as { status?: number })?.status === 401;
         setMessages((prev) =>
           prev.map((m) =>
             m.id === aiId
               ? {
                   ...m,
-                  content: `⚠️ Could not connect to the server.`,
+                  content: isAuthError
+                    ? "⚠️ Your session expired — please sign in again."
+                    : "⚠️ Could not connect to the server.",
                   isStreaming: false,
                 }
               : m
           )
         );
         setConnected(false);
+        if (isAuthError) {
+          await refreshAuth();
+          router.replace("/login");
+        }
       } finally {
         setIsStreaming(false);
         setMessages((prev) =>
@@ -152,97 +213,127 @@ export default function Home() {
         abortRef.current = null;
       }
     },
-    [isStreaming, sessionId]
+    [isStreaming, sessionId, refreshAuth, router]
   );
 
-  const handleReset = useCallback(async () => {
-    if (sessionId) await resetSession(sessionId);
+  const handleReset = useCallback(() => {
+    // Starting a new trip just clears local state — it must NOT delete the
+    // previous conversation, since it's still visible (and reopenable) in
+    // the sidebar's history. A fresh session is created lazily on the next
+    // message (see get_or_create_chat_session on the backend).
+    abortRef.current?.abort();
     setMessages([]);
     setSessionId(null);
     setStatsFlights(0);
     setStatsHotels(0);
     setStatsTools(0);
     setStatsTime("—");
-  }, [sessionId]);
+  }, []);
+
+  const handleSelectSession = useCallback(
+    async (id: string) => {
+      if (id === sessionId) return;
+      abortRef.current?.abort();
+      setIsStreaming(false);
+      try {
+        const rows = await getSessionMessages(id);
+        setMessages(storedToUIMessages(rows));
+        setSessionId(id);
+      } catch {
+        // ignore — session may have been deleted from another tab
+      }
+    },
+    [sessionId]
+  );
+
+  const handleSessionDeleted = useCallback(
+    (id: string) => {
+      if (id !== sessionId) return;
+      setMessages([]);
+      setSessionId(null);
+    },
+    [sessionId]
+  );
+
+  if (authLoading || !user) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <LogoBadge size={44} className="rounded-2xl animate-pulse-dot" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden relative">
-      <Sidebar 
-        onReset={handleReset} 
-        isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)} 
+      {showOnboarding && (
+        <OnboardingModal
+          onComplete={async () => {
+            setShowOnboarding(false);
+            await refreshAuth();
+          }}
+        />
+      )}
+
+      <Sidebar
+        onReset={handleReset}
+        onSelectSession={handleSelectSession}
+        onSessionDeleted={handleSessionDeleted}
+        currentSessionId={sessionId}
+        refreshKey={refreshKey}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
       {/* Main column */}
       <div className="flex flex-col flex-1 overflow-hidden">
-
         {/* ── Top Bar ── */}
-        <header
-          className="w-full border-b flex-shrink-0 z-50"
-          style={{
-            background: "rgba(6,11,24,0.8)",
-            backdropFilter: "blur(24px)",
-            borderColor: "var(--glass-border)",
-          }}
-        >
-          <div className="max-w-4xl mx-auto w-full flex items-center justify-between px-6 md:px-8 py-4 md:py-6">
-            <div className="flex items-center gap-4">
+        <header className="chrome w-full border-b flex-shrink-0 z-50">
+          <div className="max-w-4xl mx-auto w-full flex items-center justify-between px-4 sm:px-6 md:px-8 py-3 md:py-4">
+            <div className="flex items-center gap-3">
               {/* Hamburger Toggle */}
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="md:hidden p-2 -ml-2 text-white/70 hover:text-white transition-colors"
+                aria-label="Open sidebar"
+                className="md:hidden p-2 -ml-2 transition-colors"
+                style={{ color: "var(--muted)" }}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              
+
+              <LogoBadge size={32} className="rounded-lg flex-shrink-0 hidden sm:block" />
+
               <div className="flex flex-col">
-                <div
-                  className="text-lg md:text-xl font-black tracking-tight flex items-center gap-2.5"
-                  style={{ fontFamily: "'Cabinet Grotesk', sans-serif" }}
-                >
-                  <span className="hidden xs:inline">✈️</span>
-                  <span className="bg-gradient-to-r from-white to-sky-400 bg-clip-text text-transparent">
-                    SkyMind
-                  </span>
+                <div className="font-display text-base md:text-lg font-extrabold tracking-tight" style={{ color: "var(--text)" }}>
+                  SkyMind
                 </div>
-                <div className="text-[10px] md:text-xs mt-0.5 opacity-50 font-medium" style={{ color: "var(--muted)" }}>
-                  Travel Assistant <span className="hidden sm:inline">· Google Flights + Hotels Live</span>
+                <div className="text-[10px] md:text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+                  <span className="hidden xs:inline">Flights + Hotels, live</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {/* Connection status */}
               {connected !== null && (
                 <div
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] md:text-xs border transition-all duration-500"
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] md:text-xs border"
                   style={{
-                    background: connected ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
-                    borderColor: connected ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)",
-                    color: connected ? "var(--success)" : "#ef4444",
+                    background: "var(--surface-2)",
+                    borderColor: "var(--border)",
+                    color: connected ? "var(--success)" : "var(--danger)",
                   }}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{ background: connected ? "var(--success)" : "#ef4444" }} />
+                  <span
+                    className="w-1.5 h-1.5 rounded-full animate-pulse-dot"
+                    style={{ background: connected ? "var(--success)" : "var(--danger)" }}
+                  />
                   <span className="font-semibold">{connected ? "Online" : "Offline"}</span>
                 </div>
               )}
 
-              <div
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] md:text-xs border font-medium"
-                style={{
-                  background: "var(--glass)",
-                  borderColor: "var(--glass-border)",
-                  color: "var(--muted)",
-                }}
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
-                </span>
-                LIVE
-              </div>
+              <ThemeToggle />
             </div>
           </div>
         </header>
@@ -254,11 +345,8 @@ export default function Home() {
           {/* ── Stats Strip ── */}
           {messages.length > 0 && (
             <div
-              className="flex gap-2.5 px-4 md:px-8 py-2.5 flex-shrink-0 overflow-x-auto scrollbar-thin"
-              style={{ 
-                background: "rgba(10,15,30,0.4)",
-                borderTop: "1px solid var(--glass-border)" 
-              }}
+              className="flex gap-2 px-3 sm:px-4 md:px-8 py-2 flex-shrink-0 overflow-x-auto scrollbar-thin border-t"
+              style={{ borderColor: "var(--border)" }}
             >
               {[
                 { icon: "✈️", label: "Flights", val: statsFlights },
@@ -268,12 +356,8 @@ export default function Home() {
               ].map((s, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] md:text-xs whitespace-nowrap border flex-shrink-0"
-                  style={{
-                    background: "var(--glass)",
-                    borderColor: "var(--glass-border)",
-                    color: "var(--muted)",
-                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] md:text-xs whitespace-nowrap border flex-shrink-0"
+                  style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--muted)" }}
                 >
                   <span className="opacity-80">{s.icon}</span>
                   <span className="hidden xs:inline">{s.label}:</span>
@@ -284,14 +368,7 @@ export default function Home() {
           )}
 
           {/* ── Input Area ── */}
-          <div
-            className="flex-shrink-0 px-4 md:px-8 pb-4 md:pb-8 pt-4"
-            style={{
-              background: "rgba(6,11,24,0.85)",
-              backdropFilter: "blur(24px)",
-              borderTop: messages.length > 0 ? "none" : "1px solid var(--glass-border)",
-            }}
-          >
+          <div className="chrome flex-shrink-0 px-3 sm:px-4 md:px-8 pb-4 md:pb-8 pt-3 md:pt-4">
             <div className="max-w-4xl mx-auto w-full">
               <ChatInput onSend={handleSend} disabled={isStreaming} />
             </div>

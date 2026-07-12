@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "/Users/muhammadasharibsiddiqui/Documents/My work/flights-mcp-server/frontend"
+      ],
+      "port": 3000
+    }
+  ]
+}
