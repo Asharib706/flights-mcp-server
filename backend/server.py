@@ -21,8 +21,19 @@ import sys
 import json
 import uuid
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+
+# uvicorn only configures its own loggers (uvicorn/uvicorn.access/uvicorn.error), not
+# the root logger, so a bare getLogger(...).info(...) here would be silently dropped —
+# give this logger its own handler/level rather than assume one exists.
+guardrail_logger = logging.getLogger("skymind.guardrail")
+guardrail_logger.setLevel(logging.INFO)
+if not guardrail_logger.handlers:
+    _guardrail_handler = logging.StreamHandler()
+    _guardrail_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(message)s"))
+    guardrail_logger.addHandler(_guardrail_handler)
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -81,10 +92,30 @@ def create_llm():
         )
 
 
+# ── Guardrail: keep the assistant on travel topics ───────────────────────────
+# Prompt-only for now (see backend plan) — a determined user can talk around this,
+# but it's the right first tier: free, zero latency. GUARDRAIL_MARKER lets us
+# detect (heuristically, best-effort) when it actually fires, so refusals can be
+# logged as data for a future classifier tier rather than just disappearing.
+GUARDRAIL_REFUSAL = (
+    "I'm SkyMind, focused on flights, hotels, and trip planning — happy to help you find "
+    "or book travel instead. What trip can I help with?"
+)
+GUARDRAIL_MARKER = "focused on flights, hotels, and trip planning"
+
 # ── System Prompt ────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = (
     "You are SkyMind, a helpful and professional AI travel assistant with access to "
     "both flight search tools AND hotel search tools.\n\n"
+
+    "SCOPE — READ FIRST:\n"
+    "You only help with travel: flights, hotels, trip planning, itineraries, destinations,\n"
+    "visas/travel documents (general info only, not legal advice), packing, travel budgeting,\n"
+    "and currency/weather as it relates to a trip.\n"
+    "If the user asks about anything outside this scope (coding help, general trivia, math,\n"
+    "unrelated advice, etc.), politely decline in one sentence and redirect. Do not answer\n"
+    "the off-topic question first and then redirect — decline before answering. Use exactly\n"
+    f"this redirect, verbatim: \"{GUARDRAIL_REFUSAL}\"\n\n"
 
     "GENERAL BEHAVIOR:\n"
     "- Be friendly, clear, and conversational.\n"
@@ -503,6 +534,14 @@ async def chat(
             if final_ai_content:
                 background_tasks.add_task(
                     run_memory_extraction, llm, current_user.id, user_msg, final_ai_content
+                )
+
+            if GUARDRAIL_MARKER in final_ai_content:
+                guardrail_logger.info(
+                    "guardrail_block user_id=%s session_id=%s message=%r",
+                    current_user.id,
+                    session_id,
+                    user_msg[:200],
                 )
 
             # Send done event
