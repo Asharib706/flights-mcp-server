@@ -16,10 +16,14 @@ export default function ChatWindow({ messages, onSuggestionClick }: ChatWindowPr
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, lastMessageContent]);
 
+  const isEmpty = messages.length === 0;
+
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin px-4 md:px-8 py-6 md:py-10">
-      <div className="max-w-4xl mx-auto w-full">
-        {messages.length === 0 ? (
+      <div
+        className={`max-w-4xl mx-auto w-full ${isEmpty ? "min-h-full flex flex-col justify-center" : ""}`}
+      >
+        {isEmpty ? (
           <EmptyState onSuggestionClick={onSuggestionClick} />
         ) : (
           messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)

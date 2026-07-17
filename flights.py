@@ -569,7 +569,6 @@ async def get_cheapest_flights(origin: str, destination: str, departure_date: st
 
         output = ["Here are the cheapest flights for this route and time: "] + flight_info
 
-        print(output)
         return output
 
 
@@ -674,7 +673,6 @@ async def get_best_flights(origin: str, destination: str, departure_date: str,
 
         output = ["Here are the best flights for this route and time: "] + flight_info
 
-        print(output)
         return output
     
 
@@ -806,7 +804,6 @@ async def get_time_filtered_flights(state: str, target_time_str: str, origin: st
 
         output = [context_str] + flight_info
 
-        print(output)
         return output
 
 
