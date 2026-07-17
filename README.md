@@ -248,6 +248,50 @@ For more information, refer to the [Official MCP Documentation](https://modelcon
 
 For more information, refer to the [Official Cursor MCP Documentation](https://docs.cursor.com/context/model-context-protocol).
 
+## 🌐 Running the Web Application
+
+In addition to running as an MCP server, this project includes a complete web application with a Next.js frontend and a FastAPI backend.
+
+### 1. Running the Backend (FastAPI)
+
+The backend is built with Python and FastAPI.
+
+1. **Open a terminal** and navigate to the `backend` directory:
+   ```bash
+   cd backend
+   ```
+2. **Set up a virtual environment** and install the dependencies:
+   ```bash
+   uv venv
+   source .venv/bin/activate
+   uv pip install -r requirements.txt
+   ```
+3. **Configure Environment Variables:**
+   Make sure you have an `.env` file in the `backend` directory. You may need to set variables like `LLM_PROVIDER`, `GEMINI_API_KEY`, etc., depending on what LLM you want to use.
+4. **Start the FastAPI server:**
+   ```bash
+   python -m uvicorn server:app --reload --port 8000
+   ```
+   The backend will now be running on `http://127.0.0.1:8000`.
+
+### 2. Running the Frontend (Next.js)
+
+The frontend is a Next.js application.
+
+1. **Open a new terminal window** and navigate to the `frontend` directory:
+   ```bash
+   cd frontend
+   ```
+2. **Install the dependencies:**
+   ```bash
+   npm install
+   ```
+3. **Start the Next.js development server:**
+   ```bash
+   npm run dev
+   ```
+   The frontend will now be running on `http://localhost:3000`. Open this URL in your browser to interact with the application.
+
 
 ## 🚀 Example Usage
 
