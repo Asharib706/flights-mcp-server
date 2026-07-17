@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { listSessions, resetSession as deleteSession, SessionSummary } from "../lib/api";
 import { useAuth } from "./AuthProvider";
-import { LogoBadge } from "./Logo";
+import { LogoIcon } from "./Logo";
 
 interface SidebarProps {
   onReset: () => void;
@@ -103,7 +103,7 @@ export default function Sidebar({
           style={{ borderColor: "var(--border)" }}
         >
           <div className="flex items-center gap-3">
-            <LogoBadge size={38} className="rounded-xl flex-shrink-0" />
+            <LogoIcon height={34} className="flex-shrink-0" />
             <div>
               <div className="font-display text-lg font-extrabold tracking-tight" style={{ color: "var(--text)" }}>
                 SkyMind

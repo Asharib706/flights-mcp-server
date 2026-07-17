@@ -20,6 +20,10 @@
   --card-glow: rgba(31, 92, 86, 0.16);
   --overlay-soft: rgba(36, 31, 24, 0.05);
   --overlay-strong: rgba(36, 31, 24, 0.1);
+  /* The client logo's "SKY" wordmark is a fixed dark navy baked into the
+     raster — legible directly on the light page, but needs a light backing
+     plate in dark mode or it disappears. Transparent here, real color below. */
+  --logo-plate: transparent;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,6 +44,7 @@
     --card-glow: rgba(79, 179, 163, 0.22);
     --overlay-soft: rgba(241, 234, 217, 0.06);
     --overlay-strong: rgba(241, 234, 217, 0.12);
+    --logo-plate: #F3EFE6;
   }
 }
 
@@ -60,6 +65,7 @@
   --card-glow: rgba(79, 179, 163, 0.22);
   --overlay-soft: rgba(241, 234, 217, 0.06);
   --overlay-strong: rgba(241, 234, 217, 0.12);
+  --logo-plate: #F3EFE6;
 }
 
 :root[data-theme="light"] {
@@ -79,6 +85,7 @@
   --card-glow: rgba(31, 92, 86, 0.16);
   --overlay-soft: rgba(36, 31, 24, 0.05);
   --overlay-strong: rgba(36, 31, 24, 0.1);
+  --logo-plate: transparent;
 }
 
 /* ── Base ─────────────────────────────────────────────────────────────── */

@@ -1,52 +1,34 @@
 /**
- * SkyMind's Waypoint mark: an open ring (origin) connected by a route to a
- * filled dot (destination) — built from the Overland accent pair directly,
- * fixed-color like any app icon (doesn't theme-swap with the page).
+ * SkyMind's real client logo (brain/plane/clouds mark + "SkyMind" wordmark),
+ * cropped and background-removed from the marketing asset — see
+ * assets/brand/skymind-logo-original.jpeg for the untouched source.
+ *
+ * The wordmark's "SKY" is a fixed dark navy baked into the raster, so it has
+ * no way to invert for dark mode on its own. Rather than recolor pixels on a
+ * compressed JPEG-derived asset, both components sit on a `--logo-plate`
+ * backing (transparent in light mode, a light stone chip in dark mode — see
+ * globals.css) so the logo's actual colors stay untouched either way.
  */
-export function LogoBadge({ size = 40, className }: { size?: number; className?: string }) {
+import { CSSProperties } from "react";
+
+/** Icon + "SkyMind" wordmark together — for standalone placements (auth pages, loading state). */
+export function LogoFull({ height = 40, className }: { height?: number; className?: string }) {
+  const style: CSSProperties = { background: "var(--logo-plate)" };
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      className={className}
-      role="img"
-      aria-label="SkyMind"
-    >
-      <rect x="0" y="0" width="64" height="64" rx="16" fill="#1F5C56" />
-      <circle cx="16" cy="46" r="4.5" fill="none" stroke="#F3EFE6" strokeWidth="3" />
-      <path
-        d="M16,46 C 20,30 34,22 45,18"
-        fill="none"
-        stroke="#F3EFE6"
-        strokeWidth="4.2"
-        strokeLinecap="round"
-      />
-      <circle cx="46" cy="18" r="5.5" fill="#E0966A" />
-    </svg>
+    <span className={`inline-flex items-center rounded-2xl px-2.5 py-1.5 ${className || ""}`} style={style}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/skymind-logo-full.png" alt="SkyMind" style={{ height, width: "auto" }} />
+    </span>
   );
 }
 
-/** Flat, single-color version for inline use next to text — inherits currentColor. */
-export function LogoMark({ size = 24, className }: { size?: number; className?: string }) {
+/** Icon only, no wordmark — for compact rows that already show "SkyMind" as text nearby. */
+export function LogoIcon({ height = 32, className }: { height?: number; className?: string }) {
+  const style: CSSProperties = { background: "var(--logo-plate)" };
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      className={className}
-      role="img"
-      aria-label="SkyMind"
-    >
-      <circle cx="16" cy="46" r="4.5" fill="none" stroke="currentColor" strokeWidth="3" opacity="0.55" />
-      <path
-        d="M16,46 C 20,30 34,22 45,18"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="4.2"
-        strokeLinecap="round"
-      />
-      <circle cx="46" cy="18" r="5.5" fill="#B5714A" />
-    </svg>
+    <span className={`inline-flex items-center rounded-xl px-1.5 py-1 ${className || ""}`} style={style}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/skymind-icon.png" alt="SkyMind" style={{ height, width: "auto" }} />
+    </span>
   );
 }

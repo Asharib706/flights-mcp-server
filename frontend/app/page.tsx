@@ -7,7 +7,7 @@ import ChatInput from "../components/ChatInput";
 import Sidebar from "../components/Sidebar";
 import OnboardingModal from "../components/OnboardingModal";
 import ThemeToggle from "../components/ThemeToggle";
-import { LogoBadge } from "../components/Logo";
+import { LogoFull, LogoIcon } from "../components/Logo";
 import { useAuth } from "../components/AuthProvider";
 import { Message, ToolEvent } from "../components/MessageBubble";
 import {
@@ -258,7 +258,7 @@ export default function Home() {
   if (authLoading || !user) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <LogoBadge size={44} className="rounded-2xl animate-pulse-dot" />
+        <LogoFull height={48} className="animate-pulse-dot" />
       </div>
     );
   }
@@ -302,7 +302,7 @@ export default function Home() {
                 </svg>
               </button>
 
-              <LogoBadge size={32} className="rounded-lg flex-shrink-0 hidden sm:block" />
+              <LogoIcon height={30} className="flex-shrink-0 hidden sm:block" />
 
               <div className="flex flex-col">
                 <div className="font-display text-base md:text-lg font-extrabold tracking-tight" style={{ color: "var(--text)" }}>

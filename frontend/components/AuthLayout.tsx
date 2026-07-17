@@ -1,7 +1,7 @@
 "use client";
 
 import { InputHTMLAttributes, ReactNode } from "react";
-import { LogoBadge } from "./Logo";
+import { LogoFull } from "./Logo";
 
 interface AuthLayoutProps {
   eyebrow: string;
@@ -16,7 +16,7 @@ export default function AuthLayout({ eyebrow, title, subtitle, children, footer 
     <div className="flex-1 flex items-center justify-center px-4 py-10 overflow-y-auto scrollbar-thin animate-fade-up">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center text-center mb-8">
-          <LogoBadge size={52} className="mb-5 rounded-2xl shadow-lg" />
+          <LogoFull height={64} className="mb-5 shadow-lg" />
           <span
             className="text-[10px] tracking-[0.2em] uppercase font-semibold"
             style={{ color: "var(--muted)" }}

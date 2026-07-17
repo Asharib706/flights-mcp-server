@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { submitOnboarding, OnboardingPayload } from "../lib/api";
-import { LogoBadge } from "./Logo";
+import { LogoIcon } from "./Logo";
 
 type AnswerMap = Record<string, string | string[]>;
 
@@ -106,7 +106,7 @@ export default function OnboardingModal({ onComplete }: { onComplete: () => void
         className="w-full max-w-lg rounded-3xl p-7 md:p-8 card max-h-[90vh] overflow-y-auto scrollbar-thin"
       >
         <div className="flex items-center gap-3 mb-7">
-          <LogoBadge size={36} className="rounded-xl flex-shrink-0" />
+          <LogoIcon height={30} className="flex-shrink-0" />
           <div className="flex-1 flex gap-1.5">
             {STEPS.map((_, i) => (
               <div
